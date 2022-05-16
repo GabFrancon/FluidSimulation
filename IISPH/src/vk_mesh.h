@@ -1,28 +1,29 @@
 #pragma once
 
-
-// third-parties
-
-#include <vulkan/vulkan.h>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 
+//local
+#include "vk_memory.h"
 
 // std
-
 #include <array>
 #include <vector>
+
+struct VertexInputDescription {
+    std::array<VkVertexInputBindingDescription, 1> bindings;
+    std::array<VkVertexInputAttributeDescription, 3> attributes;
+};
 
 struct Vertex {
     glm::vec3 pos;
     glm::vec3 color;
     glm::vec2 texCoord;
 
-    static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();
+    static VertexInputDescription getVertexDescription();
 
     bool operator==(const Vertex& other) const { return pos == other.pos && color == other.color && texCoord == other.texCoord; }
 };
@@ -35,16 +36,15 @@ namespace std {
     };
 };
 
-struct Mesh
-{
+class Mesh {
+public:
     std::vector<Vertex> vertices;
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
+    AllocatedBuffer vertexBuffer;
 
     std::vector<uint32_t> indices;
-    VkBuffer indexBuffer;
-    VkDeviceMemory indexBufferMemory;
+    AllocatedBuffer indexBuffer;
 
     void loadFromObj(const char* filepath);
+    void destroy(VkDevice device);
 };
 

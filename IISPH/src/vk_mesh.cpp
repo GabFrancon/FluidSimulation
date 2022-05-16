@@ -1,41 +1,40 @@
 #include "vk_mesh.h"
 
-// third parties
-
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
 
-VkVertexInputBindingDescription Vertex::getBindingDescription() {
-    VkVertexInputBindingDescription bindingDescription{};
-    bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(Vertex);
-    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+VertexInputDescription Vertex::getVertexDescription() {
+    VertexInputDescription description{};
 
-    return bindingDescription;
+    VkVertexInputBindingDescription mainBinding{};
+    mainBinding.binding = 0;
+    mainBinding.stride = sizeof(Vertex);
+    mainBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription positionAttribute{};
+    positionAttribute.binding = 0;
+    positionAttribute.location = 0;
+    positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+    positionAttribute.offset = offsetof(Vertex, pos);
+
+    VkVertexInputAttributeDescription colorAttribute{};
+    colorAttribute.binding = 0;
+    colorAttribute.location = 1;
+    colorAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+    colorAttribute.offset = offsetof(Vertex, color);
+
+    VkVertexInputAttributeDescription texCoordAttribute{};
+    texCoordAttribute.binding = 0;
+    texCoordAttribute.location = 2;
+    texCoordAttribute.format = VK_FORMAT_R32G32_SFLOAT;
+    texCoordAttribute.offset = offsetof(Vertex, texCoord);
+
+    description.bindings = { mainBinding };
+    description.attributes = { positionAttribute, colorAttribute, texCoordAttribute };
+
+    return description;
 }
-
-std::array<VkVertexInputAttributeDescription, 3> Vertex::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-
-    attributeDescriptions[0].binding = 0;
-    attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-    attributeDescriptions[1].binding = 0;
-    attributeDescriptions[1].location = 1;
-    attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-    attributeDescriptions[2].binding = 0;
-    attributeDescriptions[2].location = 2;
-    attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-    attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-    return attributeDescriptions;
-}
-
 
 void Mesh::loadFromObj(const char* filepath) {
     tinyobj::attrib_t attrib;
@@ -72,4 +71,9 @@ void Mesh::loadFromObj(const char* filepath) {
             indices.push_back(uniqueVertices[vertex]);
         }
     }
+}
+
+void Mesh::destroy(VkDevice device) {
+    indexBuffer.destroy(device);
+    vertexBuffer.destroy(device);
 }
