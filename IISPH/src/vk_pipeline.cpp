@@ -1,7 +1,12 @@
 #include "vk_pipeline.h"
 
 
-VkPipeline PipelineBuilder::buildPipeline(VkDevice device, VkRenderPass renderPass, VkPipelineLayout pipelineLayout, const std::string& vertexShaderPath, const std::string& fragmentShaderPath) {
+void Material::destroy(VkDevice device) {
+    vkDestroyPipeline(device, pipeline, nullptr);
+    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+}
+
+VkPipeline PipelineBuilder::buildPipeline(VkDevice device, VkRenderPass renderPass, const std::string& vertexShaderPath, const std::string& fragmentShaderPath) {
 
     // set vertex shader
     auto vertShaderCode = readFile(vertexShaderPath);

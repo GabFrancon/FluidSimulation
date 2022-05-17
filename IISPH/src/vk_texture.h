@@ -24,7 +24,7 @@ public:
 	VkSampler sampler;
 	uint32_t mipLevels;
 
-	void loadFromFile(VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, const char* filepath);
+	void loadAndUpload(VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, const char* filepath);
 	void destroy(VkDevice device);
 
 private:

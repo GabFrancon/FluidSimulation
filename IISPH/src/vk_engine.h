@@ -74,6 +74,12 @@ struct UniformBufferObject {
     alignas(16) glm::mat4 proj;
 };
 
+struct RenderObject {
+    Mesh* mesh;
+    Material* material;
+    glm::mat4 modelMatrix;
+};
+
 
 
 // the Vulkan engine
@@ -130,7 +136,7 @@ private:
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
 
-    // Scene resources
+    // Assets
     Texture texture;
     Mesh mesh;
 
@@ -141,12 +147,13 @@ private:
     std::vector<VkDescriptorSet> descriptorSets;
 
     // Graphics pipelines
-    VkPipelineLayout pipelineLayout;
-    VkPipeline solidPipeline;
-    VkPipeline wireframePipeline;
+    Material solidMaterial;
+    Material wireframeMaterial;
     bool wireframeModeOn = false;
 
-    // Utils
+    // Scene objects
+    RenderObject vikingsRoom;
+    RenderObject wireframeRoom;
     uint32_t currentFrame = 0;
 
 
@@ -160,9 +167,10 @@ private:
     void initCommands();
     void initFramebuffers();
     void initSyncStructures();
-    void initScene();
+    void loadAssets();
     void initDescriptors();
     void initGraphicsPipelines();
+    void initScene();
 
 
 
@@ -207,7 +215,6 @@ private:
     // Commands
     void createCommandPool();
     void createCommandBuffers();
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
     // Frambuffers
     void createFramebuffers();
@@ -218,20 +225,24 @@ private:
     // Sync structures
     void createSyncObjects();
 
-    // Scene
-    void loadTextures();
-    void loadMeshes();
+    // Assets
+    void loadAndUploadTextures();
+    void loadAndUploadMeshes();
     void uploadMesh(Mesh& mesh);
-    void createUniformBuffers();
-    void updateUniformBuffer(uint32_t currentImage);
 
     // Descriptors
     void createDescriptorSetLayout();
     void createDescriptorPool();
+    void createUniformBuffers();
     void createDescriptorSets();
+    void updateUniformBuffer();
 
     // Graphics pipelines
-    void createPipelineLayout();
-    VkPipeline createPipeline(const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
+    Material createMaterial(const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
+
+    // Scene Rendering
+    void updateScene();
+    void renderScene(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+    void drawObject(VkCommandBuffer commandBuffer, RenderObject object);
 };
 
