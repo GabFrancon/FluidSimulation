@@ -12,8 +12,8 @@ void VulkanEngine::init() {
     initFramebuffers();
     initSyncStructures();
 
-    loadAssets();
     initDescriptors();
+    loadAssets();
     initGraphicsPipelines();
     initScene();
 }
@@ -133,9 +133,11 @@ void VulkanEngine::cleanup() {
     vkDestroyDescriptorSetLayout(device, globalSetLayout, nullptr);
     vkDestroyDescriptorSetLayout(device, textureSetLayout, nullptr);
 
-    vikingsTex.destroy(device);
-    statueTex.destroy(device);
-    mesh.destroy(device);
+    for (auto& tex: textures)
+        tex.second.destroy(device);
+
+    for (auto& mesh : meshes)
+        mesh.second.destroy(device);
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -172,27 +174,21 @@ void VulkanEngine::initInterface() {
 
 void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    if (key == GLFW_KEY_E && action == GLFW_PRESS)
+    if (key == GLFW_KEY_V && action == GLFW_PRESS)
     {
         auto engine = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
-        engine->statueSelected = !engine->statueSelected;
+        engine->wireframeModeOn = !engine->wireframeModeOn;
     }
-}
+    else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
 
-
-// Assets
-void VulkanEngine::loadAssets() {
-    loadTextures();
-    loadMeshes();
-}
-
-void VulkanEngine::loadTextures() {
-    vikingsTex.loadAndUpload(physicalDevice, device, commandPool, graphicsQueue, TEXTURE_PATH.c_str());
-    statueTex.loadAndUpload(physicalDevice, device, commandPool, graphicsQueue, STATUE_TEXTURE_PATH.c_str());
-}
-
-void VulkanEngine::loadMeshes() {
-    mesh.loadFromObj(MODEL_PATH.c_str());
+    else if (key == GLFW_KEY_H && action == GLFW_PRESS) {
+        std::cout << "\n\nHot keys : \n"
+            << "        V ---> activate/deactivate polygon view\n"
+            << "        H ---> get help for hot keys\n"
+            << "        ESC -> close window\n"
+            << std::endl;
+    }
 }
 
 
@@ -265,6 +261,131 @@ void VulkanEngine::createDescriptorLayouts() {
     if (vkCreateDescriptorSetLayout(device, &textureLayoutInfo, nullptr, &textureSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
+}
+
+
+// Assets
+void VulkanEngine::loadAssets() {
+    loadTextures();
+    createMaterial(*getTexture("vikings"), "vikings");
+    createMaterial(*getTexture("statue"), "statue");
+
+    loadMeshes();
+    uploadMesh(*getMesh("vikings"));
+}
+
+void VulkanEngine::loadTextures() {
+    Texture vikingsTex{};
+    vikingsTex.loadFromFile(physicalDevice, device, commandPool, graphicsQueue, TEXTURE_PATH.c_str());
+    textures["vikings"] = vikingsTex;
+    
+    Texture statueTex{};
+    statueTex.loadFromFile(physicalDevice, device, commandPool, graphicsQueue, STATUE_TEXTURE_PATH.c_str());
+    textures["statue"] = statueTex;
+}
+
+void VulkanEngine::loadMeshes() {
+    Mesh mesh;
+    mesh.loadFromObj(MODEL_PATH.c_str());
+    meshes["vikings"] = mesh;
+}
+
+void VulkanEngine::createMaterial(Texture texture, const std::string name) {
+    Material material{};
+    setMaterialTexture(texture, material);
+    materials[name] = material;
+}
+
+void VulkanEngine::setMaterialTexture(Texture texture, Material& material) {
+    VkDescriptorSetAllocateInfo textureAllocInfo{};
+    textureAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    textureAllocInfo.descriptorPool = descriptorPool;
+    textureAllocInfo.descriptorSetCount = 1;
+    textureAllocInfo.pSetLayouts = &textureSetLayout;
+
+    if (vkAllocateDescriptorSets(device, &textureAllocInfo, &material.textureDescriptor) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate descriptor sets!");
+    }
+
+    VkDescriptorImageInfo textureImageInfo{};
+    textureImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    textureImageInfo.imageView = texture.albedoMap.imageView;
+    textureImageInfo.sampler = texture.sampler;
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = material.textureDescriptor;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &textureImageInfo;
+
+    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+}
+
+void VulkanEngine::uploadMesh(Mesh& mesh) {
+    // Vertex buffer
+    VkDeviceSize vertexBufferSize = sizeof(mesh.vertices[0]) * mesh.vertices.size();
+
+    AllocatedBuffer vertexStagingBuffer{};
+    vertexStagingBuffer = createBuffer(physicalDevice, device, vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    void* vertexData;
+    vkMapMemory(device, vertexStagingBuffer.allocation, 0, vertexBufferSize, 0, &vertexData);
+    memcpy(vertexData, mesh.vertices.data(), (size_t)vertexBufferSize);
+    vkUnmapMemory(device, vertexStagingBuffer.allocation);
+
+    mesh.vertexBuffer = createBuffer(physicalDevice, device, vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    copyBuffer(device, commandPool, graphicsQueue, vertexStagingBuffer.buffer, mesh.vertexBuffer.buffer, vertexBufferSize);
+
+    vertexStagingBuffer.destroy(device);
+
+    // Index buffer
+    VkDeviceSize indexBufferSize = sizeof(mesh.indices[0]) * mesh.indices.size();
+
+    AllocatedBuffer indexStagingBuffer{};
+    indexStagingBuffer = createBuffer(physicalDevice, device, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    void* indexData{};
+    vkMapMemory(device, indexStagingBuffer.allocation, 0, indexBufferSize, 0, &indexData);
+    memcpy(indexData, mesh.indices.data(), (size_t)indexBufferSize);
+    vkUnmapMemory(device, indexStagingBuffer.allocation);
+
+    mesh.indexBuffer = createBuffer(physicalDevice, device, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    copyBuffer(device, commandPool, graphicsQueue, indexStagingBuffer.buffer, mesh.indexBuffer.buffer, indexBufferSize);
+
+    indexStagingBuffer.destroy(device);
+}
+
+
+Texture* VulkanEngine::getTexture(const std::string& name)
+{
+    auto it = textures.find(name);
+
+    if (it == textures.end())
+        return nullptr;
+
+    return &(*it).second;
+}
+
+Mesh* VulkanEngine::getMesh(const std::string& name)
+{
+    auto it = meshes.find(name);
+
+    if (it == meshes.end())
+        return nullptr;
+
+    return &(*it).second;
+}
+
+Material* VulkanEngine::getMaterial(const std::string& name) {
+    auto it = materials.find(name);
+
+    if (it == materials.end())
+        return nullptr;
+
+    return &(*it).second;
 }
 
 
@@ -360,14 +481,14 @@ void VulkanEngine::mapObjectData(RenderObject object) {
 // Graphics pipelines
 void VulkanEngine::initGraphicsPipelines() {
     // vikings material
-    VkPipelineLayout vikingsLayout = createPipelineLayout();
-    vikingsMaterial.pipelineLayout = vikingsLayout;
-    vikingsMaterial.pipeline = createPipeline(vikingsLayout, VERTEX_SHADER__PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_FILL);
+    Material* vikingsMaterial = getMaterial("vikings");
+    vikingsMaterial->pipelineLayout = createPipelineLayout();
+    vikingsMaterial->pipeline = createPipeline(vikingsMaterial->pipelineLayout, VERTEX_SHADER__PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_FILL);
 
     // statue material
-    VkPipelineLayout statueLayout = createPipelineLayout();
-    statueMaterial.pipelineLayout = statueLayout;
-    statueMaterial.pipeline = createPipeline(statueLayout, VERTEX_SHADER__PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_FILL);
+    Material* statueMaterial = getMaterial("statue");
+    statueMaterial->pipelineLayout = createPipelineLayout();
+    statueMaterial->pipeline = createPipeline(statueMaterial->pipelineLayout, VERTEX_SHADER__PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_LINE);
 }
 
 VkPipelineLayout VulkanEngine::createPipelineLayout() {
@@ -467,85 +588,25 @@ VkPipeline VulkanEngine::createPipeline(VkPipelineLayout pipelineLayout, const s
 }
 
 
-    // Scene
+// Scene
 void VulkanEngine::initScene() {
+    // init camera
+    camera.viewMatrix = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    camera.projMatrix = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+    camera.projMatrix[1][1] *= -1;
+
     // create render objects
-    vikingsRoom.mesh = &mesh;
-    vikingsRoom.material = &vikingsMaterial;
+    RenderObject vikingsRoom{};
+    vikingsRoom.mesh = getMesh("vikings");
+    vikingsRoom.material = getMaterial("vikings");
     vikingsRoom.modelMatrix = glm::mat4(1.0f);
+    renderables.push_back(vikingsRoom);
 
-    statueRoom.mesh = &mesh;
-    statueRoom.material = &statueMaterial;
+    RenderObject statueRoom{};
+    statueRoom.mesh = getMesh("vikings");
+    statueRoom.material = getMaterial("statue");
     statueRoom.modelMatrix = glm::mat4(1.0f);
-
-    // upload geometry objects
-    uploadMesh(mesh);
-
-    // map texture objects
-    mapTextureData(vikingsTex, vikingsMaterial);
-    mapTextureData(statueTex, statueMaterial);
-}
-
-void VulkanEngine::uploadMesh(Mesh& mesh) {
-    // Vertex buffer
-    VkDeviceSize vertexBufferSize = sizeof(mesh.vertices[0]) * mesh.vertices.size();
-
-    AllocatedBuffer vertexStagingBuffer{};
-    vertexStagingBuffer = createBuffer(physicalDevice, device, vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    void* vertexData;
-    vkMapMemory(device, vertexStagingBuffer.allocation, 0, vertexBufferSize, 0, &vertexData);
-    memcpy(vertexData, mesh.vertices.data(), (size_t)vertexBufferSize);
-    vkUnmapMemory(device, vertexStagingBuffer.allocation);
-
-    mesh.vertexBuffer = createBuffer(physicalDevice, device, vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    copyBuffer(device, commandPool, graphicsQueue, vertexStagingBuffer.buffer, mesh.vertexBuffer.buffer, vertexBufferSize);
-
-    vertexStagingBuffer.destroy(device);
-
-    // Index buffer
-    VkDeviceSize indexBufferSize = sizeof(mesh.indices[0]) * mesh.indices.size();
-
-    AllocatedBuffer indexStagingBuffer{};
-    indexStagingBuffer = createBuffer(physicalDevice, device, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    void* indexData{};
-    vkMapMemory(device, indexStagingBuffer.allocation, 0, indexBufferSize, 0, &indexData);
-    memcpy(indexData, mesh.indices.data(), (size_t)indexBufferSize);
-    vkUnmapMemory(device, indexStagingBuffer.allocation);
-
-    mesh.indexBuffer = createBuffer(physicalDevice, device, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    copyBuffer(device, commandPool, graphicsQueue, indexStagingBuffer.buffer, mesh.indexBuffer.buffer, indexBufferSize);
-
-    indexStagingBuffer.destroy(device);
-}
-
-void VulkanEngine::mapTextureData(Texture texture, Material& material) {
-    VkDescriptorSetAllocateInfo textureAllocInfo{};
-    textureAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    textureAllocInfo.descriptorPool = descriptorPool;
-    textureAllocInfo.descriptorSetCount = 1;
-    textureAllocInfo.pSetLayouts = &textureSetLayout;
-
-    if (vkAllocateDescriptorSets(device, &textureAllocInfo, &material.textureDescriptor) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
-
-    VkDescriptorImageInfo textureImageInfo{};
-    textureImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    textureImageInfo.imageView = texture.albedoMap.imageView;
-    textureImageInfo.sampler = texture.sampler;
-
-    VkWriteDescriptorSet descriptorWrite{};
-    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = material.textureDescriptor;
-    descriptorWrite.dstBinding = 0;
-    descriptorWrite.dstArrayElement = 0;
-    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptorWrite.descriptorCount = 1;
-    descriptorWrite.pImageInfo = &textureImageInfo;
-
-    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+    renderables.push_back(statueRoom);
 }
 
 void VulkanEngine::updateScene() {
@@ -554,42 +615,52 @@ void VulkanEngine::updateScene() {
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
     // update camera
-    camera.viewMatrix = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    camera.projMatrix = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-    camera.projMatrix[1][1] *= -1;
+    //camera.viewMatrix = glm::lookaAt( ... );
+    //camera.projMatrix = glm::perspective( ... );
+    //camera.projMatrix[1][1] *= -1;
 
-    // update object
-    vikingsRoom.modelMatrix = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    statueRoom.modelMatrix = glm::mat4(1.0f);//glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    // update render objects
+    renderables[0].modelMatrix = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    renderables[1].modelMatrix = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 }
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
+
     mapCameraData(camera);
 
-    if (statueSelected) {
-        mapObjectData(statueRoom);
-        drawObject(commandBuffer, statueRoom);
+    /*for (RenderObject& object : renderables) {
+        mapObjectData(object);
+        drawObject(commandBuffer, &object);
+    }*/
 
+    if (wireframeModeOn) {
+        mapObjectData(renderables[1]);
+        drawObject(commandBuffer, &renderables[1]);
     }
     else {
-        mapObjectData(vikingsRoom);
-        drawObject(commandBuffer, vikingsRoom);
+        mapObjectData(renderables[0]);
+        drawObject(commandBuffer, &renderables[0]);
     }
 }
 
-void VulkanEngine::drawObject(VkCommandBuffer commandBuffer, RenderObject object) {
+void VulkanEngine::drawObject(VkCommandBuffer commandBuffer, RenderObject* object) {
 
-    VkBuffer vertexBuffers[] = { object.mesh->vertexBuffer.buffer };
-    VkDeviceSize offsets[] = { 0 };
+    // bind shader pipeline
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipeline);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(commandBuffer, object.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &globalDescriptors[currentFrame], 0, nullptr);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.material->textureDescriptor, 0, nullptr);
+    // bind global uniform resources
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipelineLayout, 0, 1, &globalDescriptors[currentFrame], 0, nullptr);
 
+    // bind object uniform resources
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipelineLayout, 1, 1, &object->material->textureDescriptor, 0, nullptr);
+    
+    // bind vertices
+    VkDeviceSize offset = 0 ;
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &object->mesh->vertexBuffer.buffer, &offset);
+    vkCmdBindIndexBuffer(commandBuffer, object->mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
-    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object.mesh->indices.size()), 1, 0, 0, 0);
+    // draw object
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object->mesh->indices.size()), 1, 0, 0, 0);
 }
 
 
@@ -990,8 +1061,8 @@ void VulkanEngine::cleanupSwapChain() {
         vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
     }
 
-    vikingsMaterial.destroy(device);
-    statueMaterial.destroy(device);
+    for (auto& material : materials)
+        material.second.destroy(device);
 
     vkDestroyRenderPass(device, renderPass, nullptr);
 

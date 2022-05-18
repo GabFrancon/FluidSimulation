@@ -104,9 +104,9 @@ private:
     VkDescriptorSetLayout textureSetLayout;
 
     // Assets
-    Mesh mesh;
-    Texture vikingsTex;
-    Texture statueTex;
+    std::unordered_map <std::string, Mesh> meshes;
+    std::unordered_map<std::string, Texture> textures;
+    std::unordered_map<std::string, Material> materials;
 
     // Global
     std::vector<VkDescriptorSet> globalDescriptors;
@@ -114,14 +114,11 @@ private:
     std::vector<AllocatedBuffer> objectBuffers;
 
     // Graphics pipelines
-    Material vikingsMaterial;
-    Material statueMaterial;
-    bool statueSelected = false;
+    bool wireframeModeOn = false;
 
     // Scene objects
     Camera camera;
-    RenderObject vikingsRoom;
-    RenderObject statueRoom;
+    std::vector<RenderObject> renderables;
     uint32_t currentFrame = 0;
 
 
@@ -129,18 +126,24 @@ private:
     /*--------------------------------------EDITABLE FUNCTIONS--------------------------------------*/
 
     // Interface
-    void initInterface();
+    void        initInterface();
     static void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
-
-    // Assets
-    void loadAssets();
-    void loadTextures();
-    void loadMeshes();
 
     // Descriptors
     void initDescriptors();
     void createDescriptorPool();
     void createDescriptorLayouts();
+
+    // Assets
+    void      loadAssets();
+    void      loadTextures();
+    void      loadMeshes();
+    void      createMaterial(Texture texture, const std::string name);
+    void      setMaterialTexture(Texture texture, Material& material);
+    void      uploadMesh(Mesh& mesh);
+    Texture*  getTexture(const std::string& name);
+    Mesh*     getMesh(const std::string& name);
+    Material* getMaterial(const std::string& name);
 
     //Uniform values
     void createUniformBuffers();
@@ -149,17 +152,15 @@ private:
     void mapObjectData(RenderObject object);
 
     // Graphics pipelines
-    void initGraphicsPipelines();
+    void             initGraphicsPipelines();
     VkPipelineLayout createPipelineLayout();
-    VkPipeline createPipeline(VkPipelineLayout layout, const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
+    VkPipeline       createPipeline(VkPipelineLayout layout, const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
 
     // Scene Rendering
     void initScene();
-    void uploadMesh(Mesh& mesh);
-    void mapTextureData(Texture texture, Material& material);
     void updateScene();
     void renderScene(VkCommandBuffer commandBuffer);
-    void drawObject(VkCommandBuffer commandBuffer, RenderObject object);
+    void drawObject(VkCommandBuffer commandBuffer, RenderObject* object);
 
 
 
