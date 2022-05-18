@@ -28,14 +28,15 @@
 #include <unordered_map>
 
 
-// general variables
-
+// global constants
 static const uint32_t WIDTH = 1200;
 static const uint32_t HEIGHT = 900;
 static const int MAX_FRAMES_IN_FLIGHT = 2;
 
 static const std::string MODEL_PATH           = "models/viking_room.obj";
 static const std::string TEXTURE_PATH         = "textures/viking_room.png";
+static const std::string STATUE_TEXTURE_PATH  = "textures/texture.jpg";
+
 static const std::string VERTEX_SHADER__PATH  = "shaders/vert.spv";
 static const std::string FRAGMENT_SHADER_PATH = "shaders/frag.spv";
 
@@ -48,10 +49,11 @@ static const bool enableValidationLayers = false;
 static const bool enableValidationLayers = true;
 #endif
 
-
+// struct definitions
 struct Material {
     VkPipeline pipeline;
     VkPipelineLayout pipelineLayout;
+    VkDescriptorSet textureDescriptor;
 
     void destroy(VkDevice device) {
         vkDestroyPipeline(device, pipeline, nullptr);
@@ -81,10 +83,11 @@ struct CameraData {
 
 
 
+
 class VulkanEngine {
 
 public:
-    /*-----------------------------------------MAIN FUNCTIONS----------------------------------------*/
+    /*----------------------------------------MAIN FUNCTIONS----------------------------------------*/
 
     void init();
     void run();
@@ -93,12 +96,84 @@ public:
 
 private:
 
-    /*-----------------------------------------CLASS MEMBERS-----------------------------------------*/
+    /*---------------------------------------EDITABLE MEMBERS---------------------------------------*/
+
+    // Descriptors and Uniform values
+    VkDescriptorPool descriptorPool;
+    VkDescriptorSetLayout globalSetLayout;
+    VkDescriptorSetLayout textureSetLayout;
+
+    // Assets
+    Mesh mesh;
+    Texture vikingsTex;
+    Texture statueTex;
+
+    // Global
+    std::vector<VkDescriptorSet> globalDescriptors;
+    std::vector<AllocatedBuffer> cameraBuffers;
+    std::vector<AllocatedBuffer> objectBuffers;
+
+    // Graphics pipelines
+    Material vikingsMaterial;
+    Material statueMaterial;
+    bool statueSelected = false;
+
+    // Scene objects
+    Camera camera;
+    RenderObject vikingsRoom;
+    RenderObject statueRoom;
+    uint32_t currentFrame = 0;
+
+
+
+    /*--------------------------------------EDITABLE FUNCTIONS--------------------------------------*/
+
+    // Interface
+    void initInterface();
+    static void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+
+    // Assets
+    void loadAssets();
+    void loadTextures();
+    void loadMeshes();
+
+    // Descriptors
+    void initDescriptors();
+    void createDescriptorPool();
+    void createDescriptorLayouts();
+
+    //Uniform values
+    void createUniformBuffers();
+    void createUniformSets();
+    void mapCameraData(Camera camera);
+    void mapObjectData(RenderObject object);
+
+    // Graphics pipelines
+    void initGraphicsPipelines();
+    VkPipelineLayout createPipelineLayout();
+    VkPipeline createPipeline(VkPipelineLayout layout, const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
+
+    // Scene Rendering
+    void initScene();
+    void uploadMesh(Mesh& mesh);
+    void mapTextureData(Texture texture, Material& material);
+    void updateScene();
+    void renderScene(VkCommandBuffer commandBuffer);
+    void drawObject(VkCommandBuffer commandBuffer, RenderObject object);
+
+
+
+
+
+
+
+
+    /*-----------------------------------------CORE MEMBERS-----------------------------------------*/
 
     // Interface
     GLFWwindow* window;                                         // window to present rendered images
 
-    // Core Vulkan
+    // Vulkan
     VkInstance instance;                                        // Vulkan library handle
     VkDebugUtilsMessengerEXT debugMessenger;                    // Vulkan debug output handle
     VkSurfaceKHR surface;                                       // Vulkan window surface
@@ -133,59 +208,16 @@ private:
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
 
-    // Descriptors and Uniform values
-    VkDescriptorPool descriptorPool;
-    VkDescriptorSetLayout globalSetLayout;
-    VkDescriptorSetLayout textureSetLayout;
-
-    VkDescriptorSet textureDescriptor;
-
-    // Assets
-    Mesh mesh;
-    Texture texture;
-    Material solidMaterial;
-    Material wireframeMaterial;
-
-    // Global
-    std::vector<VkDescriptorSet> globalDescriptors;
-    std::vector<AllocatedBuffer> cameraBuffers;
-    std::vector<AllocatedBuffer> objectBuffers;
-
-    // Graphics pipelines
-    bool wireframeModeOn = false;
-
-    // Scene objects
-    Camera camera;
-    RenderObject vikingsRoom;
-    RenderObject wireframeRoom;
-    uint32_t currentFrame = 0;
 
 
-
-    /*------------------------------------------INIT FUNCTIONS-----------------------------------------*/
-
-    void initInterface();
-    void initVulkan();
-    void initSwapChain();
-    void initRenderPass();
-    void initCommands();
-    void initFramebuffers();
-    void initSyncStructures();
-    void loadAssets();
-    void initDescriptors();
-    void initGraphicsPipelines();
-    void initScene();
-
-
-
-    /*-----------------------------------------HELPER FUNCTIONS----------------------------------------*/
+    /*----------------------------------------CORE FUNCTIONS----------------------------------------*/
 
     // Interface
     void createWindow();
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
-    static void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     // Vulkan
+    void initVulkan();
     void createInstance();
     bool checkValidationLayerSupport();
     std::vector<const char*> getRequiredExtensions();
@@ -204,6 +236,7 @@ private:
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
     // Swap chain
+    void initSwapChain();
     void createSwapChain();
     void cleanupSwapChain();
     void recreateSwapChain();
@@ -214,13 +247,16 @@ private:
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
     // Render pass
+    void initRenderPass();
     void createDefaultRenderPass();
 
     // Commands
+    void initCommands();
     void createCommandPool();
     void createCommandBuffers();
 
     // Frambuffers
+    void initFramebuffers();
     void createFramebuffers();
     void createColorResources();
     void createDepthResources();
@@ -228,31 +264,10 @@ private:
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
     // Sync structures
+    void initSyncStructures();
     void createSyncObjects();
-
-    // Assets
-    void loadTextures();
-    void loadMeshes();
-    void uploadMesh(Mesh& mesh);
-    void mapTextureData(Texture texture, Material& material);
-
-    // Descriptors
-    void createDescriptorPool();
-    void createDescriptorLayouts();
-
-    //Uniform values
-    void createUniformBuffers();
-    void createUniformSets();
-    void mapCameraData(Camera camera);
-    void mapObjectData(RenderObject object);
-
-    // Graphics pipelines
-    VkPipelineLayout createPipelineLayout();
-    VkPipeline createPipeline(VkPipelineLayout layout, const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
-
-    // Scene Rendering
-    void updateScene(); 
-    void renderScene(VkCommandBuffer commandBuffer, uint32_t imageIndex);
-    void drawObject(VkCommandBuffer commandBuffer, RenderObject object);
 };
+
+
+    
 
