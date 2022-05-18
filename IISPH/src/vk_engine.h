@@ -11,7 +11,6 @@
 //local
 #include "vk_mesh.h"
 #include "vk_texture.h"
-#include "vk_pipeline.h"
 
 // std
 #include <chrono>
@@ -22,7 +21,6 @@
 #include <vector>
 #include <cstring>
 #include <map>
-#include <optional>
 #include <set>
 #include <cstdint>
 #include <limits>
@@ -51,38 +49,27 @@ static const bool enableValidationLayers = true;
 #endif
 
 
-// useful struct definitions
-
-struct QueueFamilyIndices {
-    std::optional<uint32_t> graphicsFamily;
-    std::optional<uint32_t> presentFamily;
-
-    bool isComplete() {
-        return graphicsFamily.has_value() && presentFamily.has_value();
-    }
+struct RenderObject {
+    Mesh* mesh;
+    Pipeline* material;
+    glm::mat4 modelMatrix;
 };
 
-struct SwapChainSupportDetails {
-    VkSurfaceCapabilitiesKHR capabilities;
-    std::vector<VkSurfaceFormatKHR> formats;
-    std::vector<VkPresentModeKHR> presentModes;
-};
-
-struct UniformBufferObject {
+struct ObjectData {
     alignas(16) glm::mat4 model;
+};
+
+struct Camera {
+    glm::mat4 viewMatrix;
+    glm::mat4 projMatrix;
+};
+
+struct CameraData {
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
 };
 
-struct RenderObject {
-    Mesh* mesh;
-    Material* material;
-    glm::mat4 modelMatrix;
-};
 
-
-
-// the Vulkan engine
 
 class VulkanEngine {
 
@@ -140,18 +127,20 @@ private:
     Texture texture;
     Mesh mesh;
 
-    // Descriptors
-    VkDescriptorSetLayout descriptorSetLayout;
-    std::vector<AllocatedBuffer> uniformBuffers;
+    // Descriptors and Uniform values
     VkDescriptorPool descriptorPool;
-    std::vector<VkDescriptorSet> descriptorSets;
+    VkDescriptorSetLayout globalSetLayout;
+    std::vector<VkDescriptorSet> globalDescriptors;
+    std::vector<AllocatedBuffer> cameraBuffers;
+    std::vector<AllocatedBuffer> objectBuffers;
 
     // Graphics pipelines
-    Material solidMaterial;
-    Material wireframeMaterial;
+    Pipeline solidMaterial;
+    Pipeline wireframeMaterial;
     bool wireframeModeOn = false;
 
     // Scene objects
+    Camera camera;
     RenderObject vikingsRoom;
     RenderObject wireframeRoom;
     uint32_t currentFrame = 0;
@@ -221,27 +210,30 @@ private:
     void createColorResources();
     void createDepthResources();
     VkFormat findDepthFormat();
+    VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+
 
     // Sync structures
     void createSyncObjects();
 
     // Assets
     void loadAndUploadTextures();
-    void loadAndUploadMeshes();
+    void loadMeshes();
     void uploadMesh(Mesh& mesh);
 
     // Descriptors
-    void createDescriptorSetLayout();
     void createDescriptorPool();
+    void createDescriptorSetLayout();
     void createUniformBuffers();
     void createDescriptorSets();
-    void updateUniformBuffer();
+    void mapCameraData(Camera camera);
+    void mapObjectData(RenderObject object);
 
     // Graphics pipelines
-    Material createMaterial(const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
+    Pipeline createPipeline(const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
 
     // Scene Rendering
-    void updateScene();
+    void updateScene(); 
     void renderScene(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     void drawObject(VkCommandBuffer commandBuffer, RenderObject object);
 };

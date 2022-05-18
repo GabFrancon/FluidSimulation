@@ -1,18 +1,7 @@
 #pragma once
 
 //local
-#include "vk_memory.h"
-
-// std
-#include <cmath>
-
-
-struct ImageMap{
-	AllocatedImage allocatedImage;
-	VkImageView imageView;
-
-	void destroy(VkDevice device);
-};
+#include "vk_helper.h"
 
 
 class Texture {
@@ -25,10 +14,7 @@ public:
 	uint32_t mipLevels;
 
 	void loadAndUpload(VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, const char* filepath);
-	void destroy(VkDevice device);
-
-private:
 	void generateMipmaps(VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, VkFormat imageFormat);
-	void createTextureSampler(VkPhysicalDevice physicalDevice, VkDevice device, uint32_t mipLevels);
+	void destroy(VkDevice device);
 };
 
