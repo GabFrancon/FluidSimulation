@@ -49,9 +49,19 @@ static const bool enableValidationLayers = true;
 #endif
 
 
+struct Material {
+    VkPipeline pipeline;
+    VkPipelineLayout pipelineLayout;
+
+    void destroy(VkDevice device) {
+        vkDestroyPipeline(device, pipeline, nullptr);
+        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    }
+};
+
 struct RenderObject {
     Mesh* mesh;
-    Pipeline* material;
+    Material* material;
     glm::mat4 modelMatrix;
 };
 
@@ -123,20 +133,25 @@ private:
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
 
-    // Assets
-    Texture texture;
-    Mesh mesh;
-
     // Descriptors and Uniform values
     VkDescriptorPool descriptorPool;
     VkDescriptorSetLayout globalSetLayout;
+    VkDescriptorSetLayout textureSetLayout;
+
+    VkDescriptorSet textureDescriptor;
+
+    // Assets
+    Mesh mesh;
+    Texture texture;
+    Material solidMaterial;
+    Material wireframeMaterial;
+
+    // Global
     std::vector<VkDescriptorSet> globalDescriptors;
     std::vector<AllocatedBuffer> cameraBuffers;
     std::vector<AllocatedBuffer> objectBuffers;
 
     // Graphics pipelines
-    Pipeline solidMaterial;
-    Pipeline wireframeMaterial;
     bool wireframeModeOn = false;
 
     // Scene objects
@@ -212,25 +227,28 @@ private:
     VkFormat findDepthFormat();
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
-
     // Sync structures
     void createSyncObjects();
 
     // Assets
-    void loadAndUploadTextures();
+    void loadTextures();
     void loadMeshes();
     void uploadMesh(Mesh& mesh);
+    void mapTextureData(Texture texture, Material& material);
 
     // Descriptors
     void createDescriptorPool();
-    void createDescriptorSetLayout();
+    void createDescriptorLayouts();
+
+    //Uniform values
     void createUniformBuffers();
-    void createDescriptorSets();
+    void createUniformSets();
     void mapCameraData(Camera camera);
     void mapObjectData(RenderObject object);
 
     // Graphics pipelines
-    Pipeline createPipeline(const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
+    VkPipelineLayout createPipelineLayout();
+    VkPipeline createPipeline(VkPipelineLayout layout, const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
 
     // Scene Rendering
     void updateScene(); 

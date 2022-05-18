@@ -1,11 +1,11 @@
 #version 450
 
-layout(binding = 0) uniform CameraData {
+layout(set = 0, binding = 0) uniform CameraData {
     mat4 view;
     mat4 proj;
 } cameraData;
 
-layout(binding = 1) uniform ObjectData {
+layout(set = 0, binding = 1) uniform ObjectData {
     mat4 model;
 } objectData;
 

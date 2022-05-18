@@ -30,8 +30,9 @@ void Texture::loadAndUpload(VkPhysicalDevice physicalDevice, VkDevice device, Vk
 
     stagingBuffer.destroy(device);
 
-    albedoMap.imageView = createImageView(device, albedoMap.allocatedImage.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
     generateMipmaps(physicalDevice, device, commandPool, graphicsQueue, VK_FORMAT_R8G8B8A8_SRGB);
+
+    albedoMap.imageView = createImageView(device, albedoMap.allocatedImage.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
     sampler = createTextureSampler(physicalDevice, device, mipLevels);
 }
 

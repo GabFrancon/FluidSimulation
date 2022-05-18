@@ -75,15 +75,6 @@ void transitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue g
 
 
 // pipeline
-struct Pipeline {
-    VkPipeline pipeline;
-    VkPipelineLayout pipelineLayout;
-
-    void destroy(VkDevice device) {
-        vkDestroyPipeline(device, pipeline, nullptr);
-        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-    }
-};
 struct PipelineBuilder
 {
     VkPipelineLayout pipelineLayout;

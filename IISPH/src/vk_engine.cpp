@@ -99,6 +99,7 @@ void VulkanEngine::cleanup() {
 
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
     vkDestroyDescriptorSetLayout(device, globalSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device, textureSetLayout, nullptr);
 
     texture.destroy(device);
     mesh.destroy(device);
@@ -169,21 +170,28 @@ void VulkanEngine::initSyncStructures() {
 }
 
 void VulkanEngine::loadAssets() {
-    loadAndUploadTextures();
+    loadTextures();
     loadMeshes();
     uploadMesh(mesh);
 }
 
 void VulkanEngine::initDescriptors() {
     createDescriptorPool();
-    createDescriptorSetLayout();
+    createDescriptorLayouts();
     createUniformBuffers();
-    createDescriptorSets();
+    createUniformSets();
 }
 
 void VulkanEngine::initGraphicsPipelines() {
-    solidMaterial = createPipeline(VERTEX_SHADER__PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_FILL);
-    wireframeMaterial = createPipeline(VERTEX_SHADER__PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_LINE);
+    // solid material
+    VkPipelineLayout solidLayout = createPipelineLayout();
+    solidMaterial.pipelineLayout = solidLayout;
+    solidMaterial.pipeline = createPipeline(solidLayout, VERTEX_SHADER__PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_FILL);
+
+    // wireframe material
+    VkPipelineLayout wireframeLayout = createPipelineLayout();
+    wireframeMaterial.pipelineLayout = wireframeLayout;
+    wireframeMaterial.pipeline = createPipeline(wireframeLayout, VERTEX_SHADER__PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_LINE);
 }
 
 void VulkanEngine::initScene() {
@@ -194,7 +202,10 @@ void VulkanEngine::initScene() {
     wireframeRoom.mesh = &mesh;
     wireframeRoom.material = &wireframeMaterial;
     wireframeRoom.modelMatrix = glm::mat4(1.0f);
+
+    mapTextureData(texture, solidMaterial);
 }
+
 
 
 
@@ -915,7 +926,7 @@ void VulkanEngine::createSyncObjects() {
 
 // Assets
 
-void VulkanEngine::loadAndUploadTextures() {
+void VulkanEngine::loadTextures() {
     texture.loadAndUpload(physicalDevice, device, commandPool, graphicsQueue, TEXTURE_PATH.c_str());
 }
 
@@ -957,8 +968,35 @@ void VulkanEngine::uploadMesh(Mesh& mesh) {
     indexStagingBuffer.destroy(device);
 }
 
+void VulkanEngine::mapTextureData(Texture texture, Material& material) {
+    VkDescriptorSetAllocateInfo textureAllocInfo{};
+    textureAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    textureAllocInfo.descriptorPool = descriptorPool;
+    textureAllocInfo.descriptorSetCount = 1;
+    textureAllocInfo.pSetLayouts = &textureSetLayout;
 
-// Descriptors and Uniform values
+    if (vkAllocateDescriptorSets(device, &textureAllocInfo, &textureDescriptor) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate descriptor sets!");
+    }
+
+    VkDescriptorImageInfo textureImageInfo{};
+    textureImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    textureImageInfo.imageView = texture.albedoMap.imageView;
+    textureImageInfo.sampler = texture.sampler;
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = textureDescriptor;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &textureImageInfo;
+
+    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+}
+
+// Descriptors
 
 void VulkanEngine::createDescriptorPool() {
     std::array<VkDescriptorPoolSize, 3> poolSizes{};
@@ -968,20 +1006,21 @@ void VulkanEngine::createDescriptorPool() {
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[2].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    poolSizes[2].descriptorCount = 1;//static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    poolInfo.maxSets = 2 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor pool!");
     }
 }
 
-void VulkanEngine::createDescriptorSetLayout() {
+void VulkanEngine::createDescriptorLayouts() {
+    // global set layout
     VkDescriptorSetLayoutBinding cameraLayoutBinding{};
     cameraLayoutBinding.binding = 0;
     cameraLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -994,14 +1033,7 @@ void VulkanEngine::createDescriptorSetLayout() {
     objectLayoutBinding.descriptorCount = 1;
     objectLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    VkDescriptorSetLayoutBinding textureLayoutBinding{};
-    textureLayoutBinding.binding = 2;
-    textureLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    textureLayoutBinding.descriptorCount = 1;
-    textureLayoutBinding.pImmutableSamplers = nullptr;
-    textureLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-    std::array<VkDescriptorSetLayoutBinding, 3> bindings = { cameraLayoutBinding, objectLayoutBinding, textureLayoutBinding };
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = { cameraLayoutBinding, objectLayoutBinding };
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1010,7 +1042,27 @@ void VulkanEngine::createDescriptorSetLayout() {
     if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &globalSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
+
+    // texture set layout
+    VkDescriptorSetLayoutBinding textureLayoutBinding{};
+    textureLayoutBinding.binding = 0;
+    textureLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    textureLayoutBinding.descriptorCount = 1;
+    textureLayoutBinding.pImmutableSamplers = nullptr;
+    textureLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo textureLayoutInfo{};
+    textureLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    textureLayoutInfo.bindingCount = 1;
+    textureLayoutInfo.pBindings = &textureLayoutBinding;
+
+    if (vkCreateDescriptorSetLayout(device, &textureLayoutInfo, nullptr, &textureSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create descriptor set layout!");
+    }
 }
+
+
+// Uniform values
 
 void VulkanEngine::createUniformBuffers() {
 
@@ -1031,7 +1083,8 @@ void VulkanEngine::createUniformBuffers() {
     }
 }
 
-void VulkanEngine::createDescriptorSets() {
+void VulkanEngine::createUniformSets() {
+    // global descriptor set
     std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, globalSetLayout);
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -1055,12 +1108,7 @@ void VulkanEngine::createDescriptorSets() {
         objectBufferInfo.offset = 0;
         objectBufferInfo.range = sizeof(ObjectData);
 
-        VkDescriptorImageInfo textureImageInfo{};
-        textureImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        textureImageInfo.imageView = texture.albedoMap.imageView;
-        textureImageInfo.sampler = texture.sampler;
-
-        std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
+        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = globalDescriptors[i];
@@ -1077,14 +1125,6 @@ void VulkanEngine::createDescriptorSets() {
         descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrites[1].descriptorCount = 1;
         descriptorWrites[1].pBufferInfo = &objectBufferInfo;
-
-        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[2].dstSet = globalDescriptors[i];
-        descriptorWrites[2].dstBinding = 2;
-        descriptorWrites[2].dstArrayElement = 0;
-        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[2].descriptorCount = 1;
-        descriptorWrites[2].pImageInfo = &textureImageInfo;
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
@@ -1114,23 +1154,24 @@ void VulkanEngine::mapObjectData(RenderObject object) {
 
 // Graphics pipelines
 
-Pipeline VulkanEngine::createPipeline(const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode) {
-    Pipeline pipeline{};
-    
-    // create pipeline Layout
+VkPipelineLayout VulkanEngine::createPipelineLayout() {
+    std::array<VkDescriptorSetLayout, 2> layouts = { globalSetLayout, textureSetLayout };
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &globalSetLayout;
+    pipelineLayoutInfo.setLayoutCount = 2;
+    pipelineLayoutInfo.pSetLayouts = layouts.data();
 
     VkPipelineLayout pipelineLayout;
     if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");
     }
 
-    pipeline.pipelineLayout = pipelineLayout;
+    return pipelineLayout;
+}
 
-    // pipeline layout
+VkPipeline VulkanEngine::createPipeline(VkPipelineLayout pipelineLayout, const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode) {
+    
+    //  build pipeline
     PipelineBuilder builder{};
     builder.pipelineLayout = pipelineLayout;
 
@@ -1205,8 +1246,7 @@ Pipeline VulkanEngine::createPipeline(const std::string& vertexShaderPath, const
     builder.depthStencil.depthBoundsTestEnable = VK_FALSE;
     builder.depthStencil.stencilTestEnable = VK_FALSE;
 
-    pipeline.pipeline = builder.buildPipeline(device, renderPass, vertexShaderPath, fragmentShaderPath);
-
+    VkPipeline pipeline = builder.buildPipeline(device, renderPass, vertexShaderPath, fragmentShaderPath);
     return pipeline;
 }
 
@@ -1276,6 +1316,8 @@ void VulkanEngine::drawObject(VkCommandBuffer commandBuffer, RenderObject object
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(commandBuffer, object.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &globalDescriptors[currentFrame], 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &textureDescriptor, 0, nullptr);
+
 
     vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object.mesh->indices.size()), 1, 0, 0, 0);
 }
