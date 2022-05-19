@@ -126,11 +126,12 @@ void VulkanEngine::cleanup() {
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         cameraBuffers[i].destroy(device);
-        objectBuffers[i].destroy(device);
+        objectsBuffers[i].destroy(device);
     }
 
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
     vkDestroyDescriptorSetLayout(device, globalSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device, objectsSetLayout, nullptr);
     vkDestroyDescriptorSetLayout(device, textureSetLayout, nullptr);
 
     for (auto& tex: textures)
@@ -201,20 +202,18 @@ void VulkanEngine::initDescriptors() {
 }
 
 void VulkanEngine::createDescriptorPool() {
-    std::array<VkDescriptorPoolSize, 3> poolSizes{};
 
-    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-    poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-    poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[2].descriptorCount = 2; // materials.size();
+    std::vector<VkDescriptorPoolSize> poolSizes = {
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) }, //  nb of UBO * MAX_FRAMES_IN_FLIGHT
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) }, //  nb of SSBO * MAX_FRAMES_IN_FLIGHT
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2 } // materials.size();
+    };
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = 2 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT); // max descriptor sets at the same time
+    poolInfo.maxSets = 10;
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor pool!");
@@ -229,19 +228,28 @@ void VulkanEngine::createDescriptorLayouts() {
     cameraLayoutBinding.descriptorCount = 1;
     cameraLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    VkDescriptorSetLayoutBinding objectLayoutBinding{};
-    objectLayoutBinding.binding = 1;
-    objectLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    objectLayoutBinding.descriptorCount = 1;
-    objectLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    VkDescriptorSetLayoutCreateInfo globalLayoutInfo{};
+    globalLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    globalLayoutInfo.bindingCount = 1;
+    globalLayoutInfo.pBindings = &cameraLayoutBinding;
 
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings = { cameraLayoutBinding, objectLayoutBinding };
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-    layoutInfo.pBindings = bindings.data();
+    if (vkCreateDescriptorSetLayout(device, &globalLayoutInfo, nullptr, &globalSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create descriptor set layout!");
+    }
 
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &globalSetLayout) != VK_SUCCESS) {
+    // object set layout
+    VkDescriptorSetLayoutBinding objectsLayoutBinding{};
+    objectsLayoutBinding.binding = 0;
+    objectsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    objectsLayoutBinding.descriptorCount = 1;
+    objectsLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkDescriptorSetLayoutCreateInfo objectsLayoutInfo{};
+    objectsLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    objectsLayoutInfo.bindingCount = 1;
+    objectsLayoutInfo.pBindings = &objectsLayoutBinding;
+
+    if (vkCreateDescriptorSetLayout(device, &objectsLayoutInfo, nullptr, &objectsSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
 
@@ -267,27 +275,22 @@ void VulkanEngine::createDescriptorLayouts() {
 // Assets
 void VulkanEngine::loadAssets() {
     loadTextures();
-    createMaterial(*getTexture("vikings"), "vikings");
-    createMaterial(*getTexture("statue"), "statue");
+    createMaterial(*getTexture("viking"), "viking");
 
     loadMeshes();
-    uploadMesh(*getMesh("vikings"));
+    uploadMesh(*getMesh("viking"));
 }
 
 void VulkanEngine::loadTextures() {
-    Texture vikingsTex{};
-    vikingsTex.loadFromFile(physicalDevice, device, commandPool, graphicsQueue, TEXTURE_PATH.c_str());
-    textures["vikings"] = vikingsTex;
-    
-    Texture statueTex{};
-    statueTex.loadFromFile(physicalDevice, device, commandPool, graphicsQueue, STATUE_TEXTURE_PATH.c_str());
-    textures["statue"] = statueTex;
+    Texture vikingTex{};
+    vikingTex.loadFromFile(physicalDevice, device, commandPool, graphicsQueue, VIKING_TEXTURE_PATH.c_str());
+    textures["viking"] = vikingTex;
 }
 
 void VulkanEngine::loadMeshes() {
-    Mesh mesh;
-    mesh.loadFromObj(MODEL_PATH.c_str());
-    meshes["vikings"] = mesh;
+    Mesh vikingMesh;
+    vikingMesh.loadFromObj(VIKING_MODEL_PATH.c_str());
+    meshes["viking"] = vikingMesh;
 }
 
 void VulkanEngine::createMaterial(Texture texture, const std::string name) {
@@ -402,24 +405,36 @@ void VulkanEngine::createUniformBuffers() {
 
     // create object buffers
     VkDeviceSize objectBufferSize = sizeof(ObjectData);
-    objectBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    objectsBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        objectBuffers[i] = createBuffer(physicalDevice, device, objectBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        objectsBuffers[i] = createBuffer(physicalDevice, device, objectBufferSize * MAX_OBJECT, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     }
 }
 
 void VulkanEngine::createUniformSets() {
     // global descriptor set
-    std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, globalSetLayout);
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-    allocInfo.pSetLayouts = layouts.data();
+    std::vector<VkDescriptorSetLayout> globalLayouts(MAX_FRAMES_IN_FLIGHT, globalSetLayout);
+    VkDescriptorSetAllocateInfo globalAllocInfo{};
+    globalAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    globalAllocInfo.descriptorPool = descriptorPool;
+    globalAllocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    globalAllocInfo.pSetLayouts = globalLayouts.data();
 
     globalDescriptors.resize(MAX_FRAMES_IN_FLIGHT);
-    if (vkAllocateDescriptorSets(device, &allocInfo, globalDescriptors.data()) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(device, &globalAllocInfo, globalDescriptors.data()) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate descriptor sets!");
+    }
+
+    std::vector<VkDescriptorSetLayout> objectsLayouts(MAX_FRAMES_IN_FLIGHT, objectsSetLayout);
+    VkDescriptorSetAllocateInfo objectsAllocInfo{};
+    objectsAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    objectsAllocInfo.descriptorPool = descriptorPool;
+    objectsAllocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    objectsAllocInfo.pSetLayouts = objectsLayouts.data();
+
+    objectsDescriptors.resize(MAX_FRAMES_IN_FLIGHT);
+    if (vkAllocateDescriptorSets(device, &objectsAllocInfo, objectsDescriptors.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
@@ -429,10 +444,10 @@ void VulkanEngine::createUniformSets() {
         cameraBufferInfo.offset = 0;
         cameraBufferInfo.range = sizeof(CameraData);
 
-        VkDescriptorBufferInfo objectBufferInfo{};
-        objectBufferInfo.buffer = objectBuffers[i].buffer;
-        objectBufferInfo.offset = 0;
-        objectBufferInfo.range = sizeof(ObjectData);
+        VkDescriptorBufferInfo objectsBufferInfo{};
+        objectsBufferInfo.buffer = objectsBuffers[i].buffer;
+        objectsBufferInfo.offset = 0;
+        objectsBufferInfo.range = sizeof(ObjectData) * MAX_OBJECT;
 
         std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 
@@ -445,57 +460,55 @@ void VulkanEngine::createUniformSets() {
         descriptorWrites[0].pBufferInfo = &cameraBufferInfo;
 
         descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = globalDescriptors[i];
-        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstSet = objectsDescriptors[i];
+        descriptorWrites[1].dstBinding = 0;
         descriptorWrites[1].dstArrayElement = 0;
-        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pBufferInfo = &objectBufferInfo;
+        descriptorWrites[1].pBufferInfo = &objectsBufferInfo;
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 }
 
-void VulkanEngine::mapCameraData(Camera camera) {
+void VulkanEngine::mapCameraData() {
     CameraData cameraData{};
     cameraData.view = camera.viewMatrix;
     cameraData.proj = camera.projMatrix;
 
-    void* previousCameraData;
-    vkMapMemory(device, cameraBuffers[currentFrame].allocation, 0, sizeof(CameraData), 0, &previousCameraData);
-    memcpy(previousCameraData, &cameraData, sizeof(CameraData));
+    void* data;
+    vkMapMemory(device, cameraBuffers[currentFrame].allocation, 0, sizeof(CameraData), 0, &data);
+    memcpy(data, &cameraData, sizeof(CameraData));
     vkUnmapMemory(device, cameraBuffers[currentFrame].allocation);
 }
 
-void VulkanEngine::mapObjectData(RenderObject object) {
-    ObjectData objectData{};
-    objectData.model = object.modelMatrix;
+void VulkanEngine::mapObjectsData() {
+    void* data;
+    vkMapMemory(device, objectsBuffers[currentFrame].allocation, 0, sizeof(ObjectData), 0, &data);
+    ObjectData* objectsData = (ObjectData*) data;
 
-    void* previousObjectData;
-    vkMapMemory(device, objectBuffers[currentFrame].allocation, 0, sizeof(ObjectData), 0, &previousObjectData);
-    memcpy(previousObjectData, &objectData, sizeof(ObjectData));
-    vkUnmapMemory(device, objectBuffers[currentFrame].allocation);
+    for (int i = 0; i < renderables.size(); i++) {
+        RenderObject& object = renderables[i];
+        objectsData[i].model = glm::translate(glm::mat4(1.0f), object.position);
+    }
+
+    vkUnmapMemory(device, objectsBuffers[currentFrame].allocation);
 }
 
 
 // Graphics pipelines
 void VulkanEngine::initGraphicsPipelines() {
-    // vikings material
-    Material* vikingsMaterial = getMaterial("vikings");
-    vikingsMaterial->pipelineLayout = createPipelineLayout();
-    vikingsMaterial->pipeline = createPipeline(vikingsMaterial->pipelineLayout, VERTEX_SHADER__PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_FILL);
-
-    // statue material
-    Material* statueMaterial = getMaterial("statue");
-    statueMaterial->pipelineLayout = createPipelineLayout();
-    statueMaterial->pipeline = createPipeline(statueMaterial->pipelineLayout, VERTEX_SHADER__PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_LINE);
+    // viking material
+    Material* vikingMaterial = getMaterial("viking");
+    vikingMaterial->pipelineLayout = createPipelineLayout();
+    vikingMaterial->pipeline = createPipeline(vikingMaterial->pipelineLayout, VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_FILL);
 }
 
 VkPipelineLayout VulkanEngine::createPipelineLayout() {
-    std::array<VkDescriptorSetLayout, 2> layouts = { globalSetLayout, textureSetLayout };
+    std::array<VkDescriptorSetLayout, 3> layouts = { globalSetLayout, objectsSetLayout, textureSetLayout };
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 2;
+    pipelineLayoutInfo.setLayoutCount = layouts.size();
     pipelineLayoutInfo.pSetLayouts = layouts.data();
 
     VkPipelineLayout pipelineLayout;
@@ -591,22 +604,16 @@ VkPipeline VulkanEngine::createPipeline(VkPipelineLayout pipelineLayout, const s
 // Scene
 void VulkanEngine::initScene() {
     // init camera
-    camera.viewMatrix = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    camera.projMatrix = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+    camera.viewMatrix = glm::mat4(1.0f);
+    camera.projMatrix = glm::mat4(1.0f);
     camera.projMatrix[1][1] *= -1;
 
     // create render objects
-    RenderObject vikingsRoom{};
-    vikingsRoom.mesh = getMesh("vikings");
-    vikingsRoom.material = getMaterial("vikings");
-    vikingsRoom.modelMatrix = glm::mat4(1.0f);
-    renderables.push_back(vikingsRoom);
-
-    RenderObject statueRoom{};
-    statueRoom.mesh = getMesh("vikings");
-    statueRoom.material = getMaterial("statue");
-    statueRoom.modelMatrix = glm::mat4(1.0f);
-    renderables.push_back(statueRoom);
+    RenderObject vikingRoom{};
+    vikingRoom.mesh = getMesh("viking");
+    vikingRoom.material = getMaterial("viking");
+    vikingRoom.position = glm::vec3(0.0f, 0.0f, 0.0f);
+    renderables.push_back(vikingRoom);
 }
 
 void VulkanEngine::updateScene() {
@@ -615,44 +622,34 @@ void VulkanEngine::updateScene() {
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
     // update camera
-    //camera.viewMatrix = glm::lookaAt( ... );
-    //camera.projMatrix = glm::perspective( ... );
-    //camera.projMatrix[1][1] *= -1;
+    camera.viewMatrix = glm::lookAt(glm::vec3(5.0f, 5.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    camera.projMatrix = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 50.0f);
+    camera.projMatrix[1][1] *= -1;
 
     // update render objects
-    renderables[0].modelMatrix = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    renderables[1].modelMatrix = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    renderables[0].position = glm::vec3(3 *glm::cos(2.0 * 3.14 * time / 5.0f ), 3 * glm::sin(2.0 * 3.14 * time / 5.0f), 0.0f);
 }
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    mapCameraData(camera);
+    mapCameraData();
+    mapObjectsData();
 
-    /*for (RenderObject& object : renderables) {
-        mapObjectData(object);
-        drawObject(commandBuffer, &object);
-    }*/
+    for (int i=0 ; i < renderables.size() ; i++)
+        drawObject(commandBuffer, &renderables[i], i);
 
-    if (wireframeModeOn) {
-        mapObjectData(renderables[1]);
-        drawObject(commandBuffer, &renderables[1]);
-    }
-    else {
-        mapObjectData(renderables[0]);
-        drawObject(commandBuffer, &renderables[0]);
-    }
 }
 
-void VulkanEngine::drawObject(VkCommandBuffer commandBuffer, RenderObject* object) {
+void VulkanEngine::drawObject(VkCommandBuffer commandBuffer, RenderObject* object, int instanceIndex) {
 
     // bind shader pipeline
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipeline);
 
     // bind global uniform resources
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipelineLayout, 0, 1, &globalDescriptors[currentFrame], 0, nullptr);
-
-    // bind object uniform resources
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipelineLayout, 1, 1, &object->material->textureDescriptor, 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipelineLayout, 1, 1, &objectsDescriptors[currentFrame], 0, nullptr);
+    // bind object resources
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipelineLayout, 2, 1, &object->material->textureDescriptor, 0, nullptr);
     
     // bind vertices
     VkDeviceSize offset = 0 ;
@@ -660,7 +657,7 @@ void VulkanEngine::drawObject(VkCommandBuffer commandBuffer, RenderObject* objec
     vkCmdBindIndexBuffer(commandBuffer, object->mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
     // draw object
-    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object->mesh->indices.size()), 1, 0, 0, 0);
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object->mesh->indices.size()), 1, 0, 0, instanceIndex);
 }
 
 
@@ -706,7 +703,7 @@ void VulkanEngine::createInstance() {
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.pEngineName = "No Engine";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_0;
+    appInfo.apiVersion = VK_API_VERSION_1_2;
 
     VkInstanceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -935,18 +932,30 @@ void VulkanEngine::createLogicalDevice() {
         queueCreateInfo.queueCount = 1;
         queueCreateInfo.pQueuePriorities = &queuePriority;
         queueCreateInfos.push_back(queueCreateInfo);
-    }
+    }   
+    
+    VkPhysicalDeviceFeatures originalDeviceFeatures{};
+    originalDeviceFeatures.samplerAnisotropy = VK_TRUE; // enable using anisotropy
+    originalDeviceFeatures.sampleRateShading = VK_TRUE; // enable using sample shading
+    originalDeviceFeatures.fillModeNonSolid  = VK_TRUE; // enable using wireframe modee
 
-    VkPhysicalDeviceFeatures deviceFeatures{};
-    deviceFeatures.samplerAnisotropy = VK_TRUE; // enable using anisotropy
-    deviceFeatures.sampleRateShading = VK_TRUE; // enable using sample shading
-    deviceFeatures.fillModeNonSolid = VK_TRUE; // enable using wireframe mode
+    VkPhysicalDeviceVulkan11Features extraFeatures = {};
+    extraFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    extraFeatures.shaderDrawParameters = VK_TRUE;   // enable some built-in parameters in shaders
+
+    VkPhysicalDeviceFeatures2 allDeviceFeatures = {};
+    allDeviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    allDeviceFeatures.pNext = &extraFeatures;
+    allDeviceFeatures.features = originalDeviceFeatures;
+    
+    // enable all available GPUP features
+    //vkGetPhysicalDeviceFeatures2(physicalDevice, &allDeviceFeatures);
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    createInfo.pNext = &allDeviceFeatures;
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
-    createInfo.pEnabledFeatures = &deviceFeatures;
     createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
     createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
@@ -1061,8 +1070,10 @@ void VulkanEngine::cleanupSwapChain() {
         vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
     }
 
-    for (auto& material : materials)
-        material.second.destroy(device);
+    for (auto& material : materials) {
+        vkDestroyPipeline(device, material.second.pipeline, nullptr);
+        vkDestroyPipelineLayout(device, material.second.pipelineLayout, nullptr);
+    }
 
     vkDestroyRenderPass(device, renderPass, nullptr);
 
@@ -1074,7 +1085,6 @@ void VulkanEngine::cleanupSwapChain() {
 }
 void VulkanEngine::recreateSwapChain() {
     int width = 0, height = 0;
-    glfwGetFramebufferSize(window, &width, &height);
     while (width == 0 || height == 0) {
         glfwGetFramebufferSize(window, &width, &height);
         glfwWaitEvents();
@@ -1082,7 +1092,6 @@ void VulkanEngine::recreateSwapChain() {
 
     vkDeviceWaitIdle(device);
     cleanupSwapChain();
-
     initSwapChain();
     initRenderPass();
     initFramebuffers();

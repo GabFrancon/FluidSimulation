@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+
 //local
 #include "vk_mesh.h"
 #include "vk_texture.h"
@@ -27,17 +28,16 @@
 #include <algorithm>
 #include <unordered_map>
 
-
 // global constants
 static const uint32_t WIDTH = 1200;
 static const uint32_t HEIGHT = 900;
+
 static const int MAX_FRAMES_IN_FLIGHT = 2;
+static const int MAX_OBJECT = 10;
 
-static const std::string MODEL_PATH           = "models/viking_room.obj";
-static const std::string TEXTURE_PATH         = "textures/viking_room.png";
-static const std::string STATUE_TEXTURE_PATH  = "textures/texture.jpg";
-
-static const std::string VERTEX_SHADER__PATH  = "shaders/vert.spv";
+static const std::string VIKING_MODEL_PATH    = "models/viking_room.obj";
+static const std::string VIKING_TEXTURE_PATH  = "textures/viking_room.png";
+static const std::string VERTEX_SHADER_PATH   = "shaders/vert.spv";
 static const std::string FRAGMENT_SHADER_PATH = "shaders/frag.spv";
 
 static const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
@@ -54,17 +54,12 @@ struct Material {
     VkPipeline pipeline;
     VkPipelineLayout pipelineLayout;
     VkDescriptorSet textureDescriptor;
-
-    void destroy(VkDevice device) {
-        vkDestroyPipeline(device, pipeline, nullptr);
-        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-    }
 };
 
 struct RenderObject {
     Mesh* mesh;
     Material* material;
-    glm::mat4 modelMatrix;
+    glm::vec3 position;
 };
 
 struct ObjectData {
@@ -101,6 +96,7 @@ private:
     // Descriptors and Uniform values
     VkDescriptorPool descriptorPool;
     VkDescriptorSetLayout globalSetLayout;
+    VkDescriptorSetLayout objectsSetLayout;
     VkDescriptorSetLayout textureSetLayout;
 
     // Assets
@@ -111,7 +107,8 @@ private:
     // Global
     std::vector<VkDescriptorSet> globalDescriptors;
     std::vector<AllocatedBuffer> cameraBuffers;
-    std::vector<AllocatedBuffer> objectBuffers;
+    std::vector<VkDescriptorSet> objectsDescriptors;
+    std::vector<AllocatedBuffer> objectsBuffers;
 
     // Graphics pipelines
     bool wireframeModeOn = false;
@@ -148,8 +145,8 @@ private:
     //Uniform values
     void createUniformBuffers();
     void createUniformSets();
-    void mapCameraData(Camera camera);
-    void mapObjectData(RenderObject object);
+    void mapCameraData();
+    void mapObjectsData();
 
     // Graphics pipelines
     void             initGraphicsPipelines();
@@ -160,7 +157,7 @@ private:
     void initScene();
     void updateScene();
     void renderScene(VkCommandBuffer commandBuffer);
-    void drawObject(VkCommandBuffer commandBuffer, RenderObject* object);
+    void drawObject(VkCommandBuffer commandBuffer, RenderObject* object, int instanceIndex);
 
 
 
