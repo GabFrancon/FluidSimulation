@@ -35,8 +35,8 @@ static const uint32_t HEIGHT = 900;
 static const int MAX_FRAMES_IN_FLIGHT = 2;
 static const int MAX_OBJECT = 10;
 
-static const std::string VIKING_MODEL_PATH    = "models/viking_room.obj";
-static const std::string VIKING_TEXTURE_PATH  = "textures/viking_room.png";
+static const std::string SPHERE_MODEL_PATH    = "assets/models/sphere.obj";
+static const std::string WATER_TEXTURE_PATH   = "assets/textures/water.jpg";
 static const std::string VERTEX_SHADER_PATH   = "shaders/vert.spv";
 static const std::string FRAGMENT_SHADER_PATH = "shaders/frag.spv";
 
@@ -59,7 +59,7 @@ struct Material {
 struct RenderObject {
     Mesh* mesh;
     Material* material;
-    glm::vec3 position;
+    glm::mat4 modelMatrix;
 };
 
 struct ObjectData {
@@ -100,7 +100,7 @@ private:
     VkDescriptorSetLayout textureSetLayout;
 
     // Assets
-    std::unordered_map <std::string, Mesh> meshes;
+    std::unordered_map<std::string, Mesh> meshes;
     std::unordered_map<std::string, Texture> textures;
     std::unordered_map<std::string, Material> materials;
 
@@ -265,7 +265,3 @@ private:
     void initSyncStructures();
     void createSyncObjects();
 };
-
-
-    
-

@@ -179,6 +179,12 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
     {
         auto engine = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
         engine->wireframeModeOn = !engine->wireframeModeOn;
+
+        if (engine->wireframeModeOn)
+            engine->renderables[0].material = engine->getMaterial("wireframe");
+        else
+            engine->renderables[0].material = engine->getMaterial("water");
+
     }
     else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
@@ -275,22 +281,23 @@ void VulkanEngine::createDescriptorLayouts() {
 // Assets
 void VulkanEngine::loadAssets() {
     loadTextures();
-    createMaterial(*getTexture("viking"), "viking");
+    createMaterial(*getTexture("water"), "water");
+    createMaterial(*getTexture("water"), "wireframe");
 
     loadMeshes();
-    uploadMesh(*getMesh("viking"));
+    uploadMesh(*getMesh("sphere"));
 }
 
 void VulkanEngine::loadTextures() {
-    Texture vikingTex{};
-    vikingTex.loadFromFile(physicalDevice, device, commandPool, graphicsQueue, VIKING_TEXTURE_PATH.c_str());
-    textures["viking"] = vikingTex;
+    Texture waterTex{};
+    waterTex.loadFromFile(physicalDevice, device, commandPool, graphicsQueue, WATER_TEXTURE_PATH.c_str());
+    textures["water"] = waterTex;
 }
 
 void VulkanEngine::loadMeshes() {
-    Mesh vikingMesh;
-    vikingMesh.loadFromObj(VIKING_MODEL_PATH.c_str());
-    meshes["viking"] = vikingMesh;
+    Mesh sphereMesh;
+    sphereMesh.loadFromObj(SPHERE_MODEL_PATH.c_str());
+    meshes["sphere"] = sphereMesh;
 }
 
 void VulkanEngine::createMaterial(Texture texture, const std::string name) {
@@ -489,7 +496,7 @@ void VulkanEngine::mapObjectsData() {
 
     for (int i = 0; i < renderables.size(); i++) {
         RenderObject& object = renderables[i];
-        objectsData[i].model = glm::translate(glm::mat4(1.0f), object.position);
+        objectsData[i].model = object.modelMatrix;
     }
 
     vkUnmapMemory(device, objectsBuffers[currentFrame].allocation);
@@ -498,10 +505,13 @@ void VulkanEngine::mapObjectsData() {
 
 // Graphics pipelines
 void VulkanEngine::initGraphicsPipelines() {
-    // viking material
-    Material* vikingMaterial = getMaterial("viking");
-    vikingMaterial->pipelineLayout = createPipelineLayout();
-    vikingMaterial->pipeline = createPipeline(vikingMaterial->pipelineLayout, VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_FILL);
+    Material* waterMaterial = getMaterial("water");
+    waterMaterial->pipelineLayout = createPipelineLayout();
+    waterMaterial->pipeline = createPipeline(waterMaterial->pipelineLayout, VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_FILL);
+
+    Material* wireframeMaterial = getMaterial("wireframe");
+    wireframeMaterial->pipelineLayout = createPipelineLayout();
+    wireframeMaterial->pipeline = createPipeline(wireframeMaterial->pipelineLayout, VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_LINE);
 }
 
 VkPipelineLayout VulkanEngine::createPipelineLayout() {
@@ -606,14 +616,13 @@ void VulkanEngine::initScene() {
     // init camera
     camera.viewMatrix = glm::mat4(1.0f);
     camera.projMatrix = glm::mat4(1.0f);
-    camera.projMatrix[1][1] *= -1;
 
     // create render objects
-    RenderObject vikingRoom{};
-    vikingRoom.mesh = getMesh("viking");
-    vikingRoom.material = getMaterial("viking");
-    vikingRoom.position = glm::vec3(0.0f, 0.0f, 0.0f);
-    renderables.push_back(vikingRoom);
+    RenderObject waterParticle{};
+    waterParticle.mesh = getMesh("sphere");
+    waterParticle.material = getMaterial("water");
+    waterParticle.modelMatrix = glm::mat4(1.0f);
+    renderables.push_back(waterParticle);
 }
 
 void VulkanEngine::updateScene() {
@@ -622,12 +631,17 @@ void VulkanEngine::updateScene() {
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
     // update camera
-    camera.viewMatrix = glm::lookAt(glm::vec3(5.0f, 5.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    camera.viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     camera.projMatrix = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 50.0f);
     camera.projMatrix[1][1] *= -1;
 
     // update render objects
-    renderables[0].position = glm::vec3(3 *glm::cos(2.0 * 3.14 * time / 5.0f ), 3 * glm::sin(2.0 * 3.14 * time / 5.0f), 0.0f);
+    glm::vec3 position     = glm::vec3(1.0f, 1.0f, 0.0f);
+    glm::vec3 size         = glm::vec3(1.0f);
+    glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
+    float angle            = time * glm::radians(90.0f);
+
+    renderables[0].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
 }
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
