@@ -34,13 +34,15 @@
 static const uint32_t WIDTH  = 1200;
 static const uint32_t HEIGHT = 900;
 
-static const int MAX_FRAMES_IN_FLIGHT = 2;
-static const int MAX_OBJECT = 5000;
+static const int MAX_FRAMES_OVERLAP = 2;
+static const int MAX_OBJECT         = 5000;
 
-static const std::string SPHERE_MODEL_PATH    = "assets/models/sphere.obj";
-static const std::string WATER_TEXTURE_PATH   = "assets/textures/water.jpg";
-static const std::string VERTEX_SHADER_PATH   = "shaders/vert.spv";
-static const std::string FRAGMENT_SHADER_PATH = "shaders/frag.spv";
+static const std::string SPHERE_MODEL_PATH  = "assets/models/sphere.obj";
+static const std::string WATER_TEXTURE_PATH = "assets/textures/water.jpg";
+
+static const std::string BASIC_VERT_SHADER_PATH     = "shaders/basic_vert.spv";
+static const std::string INSTANCED_VERT_SHADER_PATH = "shaders/instanced_vert.spv";
+static const std::string TEXTURED_FRAG_SHADER_PATH  = "shaders/textured_frag.spv";
 
 static const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
 static const std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -125,9 +127,9 @@ private:
     /*---------------------------------------EDITABLE MEMBERS---------------------------------------*/
 
     // Interface
-    GLFWwindow* window;                                         // window to present rendered images
+    GLFWwindow* window;
 
-    // Descriptors and Uniform values
+    // Descriptor handlers
     VkDescriptorPool descriptorPool;
     VkDescriptorSetLayout globalSetLayout;
     VkDescriptorSetLayout objectsSetLayout;
@@ -138,26 +140,26 @@ private:
     std::unordered_map<std::string, Texture> textures;
     std::unordered_map<std::string, Material> materials;
 
-    // Global
+    // Uniform buffers and descriptors
     std::vector<VkDescriptorSet> globalDescriptors;
     std::vector<AllocatedBuffer> cameraBuffers;
     std::vector<VkDescriptorSet> objectsDescriptors;
     std::vector<AllocatedBuffer> objectsBuffers;
 
     // Graphics pipelines
-    bool wireframeModeOn = false;
+    bool wireframeModeOn  = false;
+    uint32_t currentFrame = 0;
 
     // Scene objects
     Camera camera;
     std::vector<RenderObject> renderables;
-    uint32_t currentFrame = 0;
 
     // Logic
     WCSPHSolver solver;
-    float appTimer = 0.0f;
-    float lastClockTime = 0.0f;
+    float appTimer         = 0.0f;
+    float lastClockTime    = 0.0f;
     float currentClockTime = 0.0f;
-    bool  appTimerStopped = true;
+    bool  appTimerStopped  = true;
 
 
 
@@ -200,7 +202,8 @@ private:
     void initScene();
     void updateScene();
     void renderScene(VkCommandBuffer commandBuffer);
-    void drawObject(VkCommandBuffer commandBuffer, RenderObject* object, int instanceIndex);
+    void drawObjects(VkCommandBuffer commandBuffer, RenderObject* firstObject, int objectsCount);
+    void drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount);
     void switchMode();
 
 

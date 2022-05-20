@@ -9,11 +9,13 @@ public:
 	int texWidth;
 	int texHeight;
 	int texChannels;
-	ImageMap albedoMap;
+
+	ImageMap  albedoMap;
 	VkSampler sampler;
-	uint32_t mipLevels;
+	uint32_t  mipLevels;
 
 	void loadFromFile(VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, const char* filepath);
+	void setTextureSampler(VkPhysicalDevice physicalDevice, VkDevice device, VkFilter filter, VkSamplerAddressMode addressMode);
 	void generateMipmaps(VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, VkFormat imageFormat);
 	void destroy(VkDevice device);
 };

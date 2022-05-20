@@ -122,13 +122,13 @@ void VulkanEngine::draw() {
         throw std::runtime_error("failed to present swap chain image!");
     }
 
-    currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    currentFrame = (currentFrame + 1) % MAX_FRAMES_OVERLAP;
 }
 
 void VulkanEngine::cleanup() {
     cleanupSwapChain();
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (size_t i = 0; i < MAX_FRAMES_OVERLAP; i++) {
         cameraBuffers[i].destroy(device);
         objectsBuffers[i].destroy(device);
     }
@@ -144,7 +144,7 @@ void VulkanEngine::cleanup() {
     for (auto& mesh : meshes)
         mesh.second.destroy(device);
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (size_t i = 0; i < MAX_FRAMES_OVERLAP; i++) {
         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
         vkDestroyFence(device, inFlightFences[i], nullptr);
@@ -231,8 +231,8 @@ void VulkanEngine::initDescriptors() {
 void VulkanEngine::createDescriptorPool() {
 
     std::vector<VkDescriptorPoolSize> poolSizes = {
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) }, //  nb of UBO * MAX_FRAMES_IN_FLIGHT
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) }, //  nb of SSBO * MAX_FRAMES_IN_FLIGHT
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_OVERLAP) }, //  nb of UBO * MAX_FRAMES_IN_FLIGHT
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_OVERLAP) }, //  nb of SSBO * MAX_FRAMES_IN_FLIGHT
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2 } // materials.size();
     };
 
@@ -425,48 +425,48 @@ void VulkanEngine::createUniformBuffers() {
 
     // create camera buffers
     VkDeviceSize cameraBufferSize = sizeof(CameraData);
-    cameraBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    cameraBuffers.resize(MAX_FRAMES_OVERLAP);
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (size_t i = 0; i < MAX_FRAMES_OVERLAP; i++) {
         cameraBuffers[i] = createBuffer(physicalDevice, device, cameraBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     }
 
     // create object buffers
     VkDeviceSize objectBufferSize = sizeof(ObjectData);
-    objectsBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    objectsBuffers.resize(MAX_FRAMES_OVERLAP);
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (size_t i = 0; i < MAX_FRAMES_OVERLAP; i++) {
         objectsBuffers[i] = createBuffer(physicalDevice, device, objectBufferSize * MAX_OBJECT, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     }
 }
 
 void VulkanEngine::createUniformSets() {
     // global descriptor set
-    std::vector<VkDescriptorSetLayout> globalLayouts(MAX_FRAMES_IN_FLIGHT, globalSetLayout);
+    std::vector<VkDescriptorSetLayout> globalLayouts(MAX_FRAMES_OVERLAP, globalSetLayout);
     VkDescriptorSetAllocateInfo globalAllocInfo{};
     globalAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     globalAllocInfo.descriptorPool = descriptorPool;
-    globalAllocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    globalAllocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_OVERLAP);
     globalAllocInfo.pSetLayouts = globalLayouts.data();
 
-    globalDescriptors.resize(MAX_FRAMES_IN_FLIGHT);
+    globalDescriptors.resize(MAX_FRAMES_OVERLAP);
     if (vkAllocateDescriptorSets(device, &globalAllocInfo, globalDescriptors.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
-    std::vector<VkDescriptorSetLayout> objectsLayouts(MAX_FRAMES_IN_FLIGHT, objectsSetLayout);
+    std::vector<VkDescriptorSetLayout> objectsLayouts(MAX_FRAMES_OVERLAP, objectsSetLayout);
     VkDescriptorSetAllocateInfo objectsAllocInfo{};
     objectsAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     objectsAllocInfo.descriptorPool = descriptorPool;
-    objectsAllocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    objectsAllocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_OVERLAP);
     objectsAllocInfo.pSetLayouts = objectsLayouts.data();
 
-    objectsDescriptors.resize(MAX_FRAMES_IN_FLIGHT);
+    objectsDescriptors.resize(MAX_FRAMES_OVERLAP);
     if (vkAllocateDescriptorSets(device, &objectsAllocInfo, objectsDescriptors.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (size_t i = 0; i < MAX_FRAMES_OVERLAP; i++) {
         VkDescriptorBufferInfo cameraBufferInfo{};
         cameraBufferInfo.buffer = cameraBuffers[i].buffer;
         cameraBufferInfo.offset = 0;
@@ -528,11 +528,11 @@ void VulkanEngine::mapObjectsData() {
 void VulkanEngine::initGraphicsPipelines() {
     Material* waterMaterial = getMaterial("water");
     waterMaterial->pipelineLayout = createPipelineLayout();
-    waterMaterial->pipeline = createPipeline(waterMaterial->pipelineLayout, VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_FILL);
+    waterMaterial->pipeline = createPipeline(waterMaterial->pipelineLayout, INSTANCED_VERT_SHADER_PATH, TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL);
 
     Material* wireframeMaterial = getMaterial("wireframe");
     wireframeMaterial->pipelineLayout = createPipelineLayout();
-    wireframeMaterial->pipeline = createPipeline(wireframeMaterial->pipelineLayout, VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH, VK_POLYGON_MODE_LINE);
+    wireframeMaterial->pipeline = createPipeline(wireframeMaterial->pipelineLayout, INSTANCED_VERT_SHADER_PATH, TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE);
 }
 
 VkPipelineLayout VulkanEngine::createPipelineLayout() {
@@ -640,44 +640,39 @@ void VulkanEngine::initScene() {
     camera.projMatrix = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
     camera.projMatrix[1][1] *= -1;
 
-
-    std::cout << "number of particles : " << solver.particleCount() << "\n" << std::endl;
-    // create render objects
+    // create particles
     for (int i = 0 ; i < solver.particleCount() ; i++) {
-        RenderObject waterParticle{};
-        waterParticle.mesh = getMesh("sphere");
-        waterParticle.material = getMaterial("water");
-
-        Vec2f pos = solver.position(i);
-        glm::vec3 position = glm::vec3(pos.x, pos.y, 0.0f);
-        glm::vec3 size = glm::vec3(0.1f);
+        glm::vec3 position = glm::vec3(solver.position(i).x, solver.position(i).y, 0.0f);
+        glm::vec3 size = glm::vec3(0.15f);
         glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
         float angle = 0.0f;
 
+        RenderObject waterParticle{};
+        waterParticle.mesh        = getMesh("sphere");
+        waterParticle.material    = getMaterial("water");
         waterParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
 
         renderables.push_back(waterParticle);
     }
+    std::cout << "number of particles : " << solver.particleCount() << "\n" << std::endl;
 }
 
 void VulkanEngine::updateScene() {
-
-
     if (!appTimerStopped) {
         currentClockTime = static_cast<float>(glfwGetTime());
         const float dt = currentClockTime - lastClockTime;
         lastClockTime = currentClockTime;
         appTimer += dt;
 
-        //update logic
+        //compute SPH logic
         for (int i = 0; i < 10; ++i) solver.update();
 
-        // update render objects
+        // update particles
         for (int i = 0; i < solver.particleCount(); i++) {
             glm::vec3 position = glm::vec3(solver.position(i).x, solver.position(i).y, 0.0f);
-            glm::vec3 size = glm::vec3(0.1f);
+            glm::vec3 size = glm::vec3(0.15f);
             glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
-            float angle = appTimer * glm::radians(90.0f);
+            float angle = 0.0f;
 
             renderables[i].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
         }
@@ -685,38 +680,59 @@ void VulkanEngine::updateScene() {
 
     // update camera
     camera.viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    camera.projMatrix = Camera::ortho(0.0f, (float)swapChainExtent.width / 80, 0.0f, (float)swapChainExtent.height / 80, 0.1f, 100.0f);
+    camera.projMatrix = Camera::ortho(0.0f, (float)swapChainExtent.width / 40, 0.0f, (float)swapChainExtent.height / 40, 0.1f, 100.0f);
     //camera.projMatrix = Camera::perspective(glm::radians(45.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
 }
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
-
     mapCameraData();
     mapObjectsData();
 
-    for (int i=0 ; i < renderables.size() ; i++)
-        drawObject(commandBuffer, &renderables[i], i);
-
+    //drawObjects(commandBuffer, renderables.data(), renderables.size());
+    drawInstanced(commandBuffer, renderables[0], renderables.size());
 }
 
-void VulkanEngine::drawObject(VkCommandBuffer commandBuffer, RenderObject* object, int instanceIndex) {
+void VulkanEngine::drawObjects(VkCommandBuffer commandBuffer, RenderObject* firstObject, int objectsCount) {
 
+    for (int i = 0; i < objectsCount; i++) {
+        RenderObject& object = firstObject[i];
+
+        // bind shader pipeline
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+
+        // bind global uniform resources
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &globalDescriptors[currentFrame], 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &objectsDescriptors[currentFrame], 0, nullptr);
+        // bind object resources
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureDescriptor, 0, nullptr);
+
+        // bind vertices
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &object.mesh->vertexBuffer.buffer, &offset);
+        vkCmdBindIndexBuffer(commandBuffer, object.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+        // draw object
+        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object.mesh->indices.size()), 1, 0, 0, i);
+    }
+}
+
+void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount) {
     // bind shader pipeline
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
 
     // bind global uniform resources
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipelineLayout, 0, 1, &globalDescriptors[currentFrame], 0, nullptr);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipelineLayout, 1, 1, &objectsDescriptors[currentFrame], 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &globalDescriptors[currentFrame], 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &objectsDescriptors[currentFrame], 0, nullptr);
     // bind object resources
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->material->pipelineLayout, 2, 1, &object->material->textureDescriptor, 0, nullptr);
-    
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureDescriptor, 0, nullptr);
+
     // bind vertices
-    VkDeviceSize offset = 0 ;
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &object->mesh->vertexBuffer.buffer, &offset);
-    vkCmdBindIndexBuffer(commandBuffer, object->mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &object.mesh->vertexBuffer.buffer, &offset);
+    vkCmdBindIndexBuffer(commandBuffer, object.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
     // draw object
-    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object->mesh->indices.size()), 1, 0, 0, instanceIndex);
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object.mesh->indices.size()), instanceCount, 0, 0, 0);
 }
 
 void VulkanEngine::switchMode() {
@@ -1318,7 +1334,7 @@ void VulkanEngine::createCommandPool() {
     }
 }
 void VulkanEngine::createCommandBuffers() {
-    commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    commandBuffers.resize(MAX_FRAMES_OVERLAP);
 
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1403,9 +1419,9 @@ void VulkanEngine::initSyncStructures() {
     createSyncObjects();
 }
 void VulkanEngine::createSyncObjects() {
-    imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+    imageAvailableSemaphores.resize(MAX_FRAMES_OVERLAP);
+    renderFinishedSemaphores.resize(MAX_FRAMES_OVERLAP);
+    inFlightFences.resize(MAX_FRAMES_OVERLAP);
 
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1414,7 +1430,7 @@ void VulkanEngine::createSyncObjects() {
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (size_t i = 0; i < MAX_FRAMES_OVERLAP; i++) {
         if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
             vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
