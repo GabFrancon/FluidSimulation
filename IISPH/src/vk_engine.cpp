@@ -4,6 +4,10 @@
 /*------------------------------------------MAIN FUNCTIONS---------------------------------------------*/
 
 void VulkanEngine::init() {
+    // init logic
+    solver = WCSPHSolver(0.08, 0.5, 1e3, Vec2f(0, -9.8), 0.01, 7.0);
+    solver.initScene(48, 32, 16, 16);
+
     initInterface();
     initVulkan();
     initSwapChain();
@@ -173,18 +177,34 @@ void VulkanEngine::initInterface() {
     glfwSetKeyCallback(window, keyboardCallback);
 }
 
+void VulkanEngine::createWindow() {
+    glfwInit();
+
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+
+    window = glfwCreateWindow(WIDTH, HEIGHT, "WCSPH simulation", nullptr, nullptr);
+    glfwSetWindowUserPointer(window, this);
+}
+
+void VulkanEngine::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+    auto engine = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
+    engine->framebufferResized = true;
+}
+
 void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    if (key == GLFW_KEY_V && action == GLFW_PRESS)
-    {
-        auto engine = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
+    auto engine = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
+
+    if (key == GLFW_KEY_V && action == GLFW_PRESS) {
         engine->wireframeModeOn = !engine->wireframeModeOn;
+        engine->switchMode();
+    }
+    else if (key == GLFW_KEY_T && action == GLFW_PRESS) {
+        engine->appTimerStopped = !engine->appTimerStopped;
 
-        if (engine->wireframeModeOn)
-            engine->renderables[0].material = engine->getMaterial("wireframe");
-        else
-            engine->renderables[0].material = engine->getMaterial("water");
-
+        if (!engine->appTimerStopped)
+            engine->lastClockTime = static_cast<float>(glfwGetTime());
     }
     else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
@@ -192,6 +212,7 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
     else if (key == GLFW_KEY_H && action == GLFW_PRESS) {
         std::cout << "\n\nHot keys : \n"
             << "        V ---> activate/deactivate polygon view\n"
+            << "        T ---> start/stop the timer\n"
             << "        H ---> get help for hot keys\n"
             << "        ESC -> close window\n"
             << std::endl;
@@ -613,35 +634,59 @@ VkPipeline VulkanEngine::createPipeline(VkPipelineLayout pipelineLayout, const s
 
 // Scene
 void VulkanEngine::initScene() {
-    // init camera
-    camera.viewMatrix = glm::mat4(1.0f);
-    camera.projMatrix = glm::mat4(1.0f);
 
+    // init camera
+    camera.viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    camera.projMatrix = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
+    camera.projMatrix[1][1] *= -1;
+
+
+    std::cout << "number of particles : " << solver.particleCount() << "\n" << std::endl;
     // create render objects
-    RenderObject waterParticle{};
-    waterParticle.mesh = getMesh("sphere");
-    waterParticle.material = getMaterial("water");
-    waterParticle.modelMatrix = glm::mat4(1.0f);
-    renderables.push_back(waterParticle);
+    for (int i = 0 ; i < solver.particleCount() ; i++) {
+        RenderObject waterParticle{};
+        waterParticle.mesh = getMesh("sphere");
+        waterParticle.material = getMaterial("water");
+
+        Vec2f pos = solver.position(i);
+        glm::vec3 position = glm::vec3(pos.x, pos.y, 0.0f);
+        glm::vec3 size = glm::vec3(0.1f);
+        glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
+        float angle = 0.0f;
+
+        waterParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+
+        renderables.push_back(waterParticle);
+    }
 }
 
 void VulkanEngine::updateScene() {
-    static auto startTime = std::chrono::high_resolution_clock::now();
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+
+    if (!appTimerStopped) {
+        currentClockTime = static_cast<float>(glfwGetTime());
+        const float dt = currentClockTime - lastClockTime;
+        lastClockTime = currentClockTime;
+        appTimer += dt;
+
+        //update logic
+        for (int i = 0; i < 10; ++i) solver.update();
+
+        // update render objects
+        for (int i = 0; i < solver.particleCount(); i++) {
+            glm::vec3 position = glm::vec3(solver.position(i).x, solver.position(i).y, 0.0f);
+            glm::vec3 size = glm::vec3(0.1f);
+            glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
+            float angle = appTimer * glm::radians(90.0f);
+
+            renderables[i].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+        }
+    }
 
     // update camera
     camera.viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    camera.projMatrix = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 50.0f);
-    camera.projMatrix[1][1] *= -1;
-
-    // update render objects
-    glm::vec3 position     = glm::vec3(1.0f, 1.0f, 0.0f);
-    glm::vec3 size         = glm::vec3(1.0f);
-    glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
-    float angle            = time * glm::radians(90.0f);
-
-    renderables[0].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+    camera.projMatrix = Camera::ortho(0.0f, (float)swapChainExtent.width / 80, 0.0f, (float)swapChainExtent.height / 80, 0.1f, 100.0f);
+    //camera.projMatrix = Camera::perspective(glm::radians(45.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
 }
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
@@ -674,6 +719,19 @@ void VulkanEngine::drawObject(VkCommandBuffer commandBuffer, RenderObject* objec
     vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object->mesh->indices.size()), 1, 0, 0, instanceIndex);
 }
 
+void VulkanEngine::switchMode() {
+    Material* material;
+
+    if (wireframeModeOn)
+        material = getMaterial("wireframe");
+    else
+        material = getMaterial("water");
+
+    for (RenderObject& object : renderables)
+        object.material = material;
+}
+
+
 
 
 
@@ -681,22 +739,6 @@ void VulkanEngine::drawObject(VkCommandBuffer commandBuffer, RenderObject* objec
 
 
 /*------------------------------------------CORE FUNCTIONS---------------------------------------------*/
-
-
-// Interface
-void VulkanEngine::createWindow() {
-    glfwInit();
-
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-
-    window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
-    glfwSetWindowUserPointer(window, this);
-}
-void VulkanEngine::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-    auto engine = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
-    engine->framebufferResized = true;
-}
 
 // Vulkan
 void VulkanEngine::initVulkan() {

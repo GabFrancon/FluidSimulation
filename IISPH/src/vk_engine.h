@@ -7,11 +7,13 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 
-//local
+// local
 #include "vk_mesh.h"
 #include "vk_texture.h"
+#include "WCSPH/wcsph_solver.h"
 
 // std
 #include <chrono>
@@ -29,11 +31,11 @@
 #include <unordered_map>
 
 // global constants
-static const uint32_t WIDTH = 1200;
+static const uint32_t WIDTH  = 1200;
 static const uint32_t HEIGHT = 900;
 
 static const int MAX_FRAMES_IN_FLIGHT = 2;
-static const int MAX_OBJECT = 10;
+static const int MAX_OBJECT = 5000;
 
 static const std::string SPHERE_MODEL_PATH    = "assets/models/sphere.obj";
 static const std::string WATER_TEXTURE_PATH   = "assets/textures/water.jpg";
@@ -69,6 +71,35 @@ struct ObjectData {
 struct Camera {
     glm::mat4 viewMatrix;
     glm::mat4 projMatrix;
+
+    static glm::mat4 perspective(float fov, float aspect, float near, float far) {
+        float f = 1.0f / tan(0.5f * fov);
+
+        glm::mat4 perspectiveProjectionMatrix = {
+            f / aspect, 0.0f, 0.0f                       ,  0.0f,
+
+            0.0f      , -f  , 0.0f                       ,  0.0f,
+
+            0.0f      , 0.0f, far / (near - far)         , -1.0f,
+
+            0.0f      , 0.0f, (near * far) / (near - far),  0.0f
+        };
+
+        return perspectiveProjectionMatrix;
+    }
+    static glm::mat4 ortho(float left, float right, float bottom, float top, float near, float far) {
+        glm::mat4 orthographicProjectionMatrix = {
+            2.0f / (right - left)           , 0.0f                            , 0.0f               , 0.0f,
+
+            0.0f                            , 2.0f / (bottom - top)           , 0.0f               , 0.0f,
+
+            0.0f                            , 0.0f                            , 1.0f / (near - far), 0.0f,
+
+            -(right + left) / (right - left), -(bottom + top) / (bottom - top), near / (near - far), 1.0f
+        };
+
+        return orthographicProjectionMatrix;
+    }
 };
 
 struct CameraData {
@@ -92,6 +123,9 @@ public:
 private:
 
     /*---------------------------------------EDITABLE MEMBERS---------------------------------------*/
+
+    // Interface
+    GLFWwindow* window;                                         // window to present rendered images
 
     // Descriptors and Uniform values
     VkDescriptorPool descriptorPool;
@@ -118,12 +152,21 @@ private:
     std::vector<RenderObject> renderables;
     uint32_t currentFrame = 0;
 
+    // Logic
+    WCSPHSolver solver;
+    float appTimer = 0.0f;
+    float lastClockTime = 0.0f;
+    float currentClockTime = 0.0f;
+    bool  appTimerStopped = true;
+
 
 
     /*--------------------------------------EDITABLE FUNCTIONS--------------------------------------*/
 
     // Interface
     void        initInterface();
+    void        createWindow();
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
     static void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     // Descriptors
@@ -158,18 +201,13 @@ private:
     void updateScene();
     void renderScene(VkCommandBuffer commandBuffer);
     void drawObject(VkCommandBuffer commandBuffer, RenderObject* object, int instanceIndex);
-
-
-
+    void switchMode();
 
 
 
 
 
     /*-----------------------------------------CORE MEMBERS-----------------------------------------*/
-
-    // Interface
-    GLFWwindow* window;                                         // window to present rendered images
 
     // Vulkan
     VkInstance instance;                                        // Vulkan library handle
@@ -209,10 +247,6 @@ private:
 
 
     /*----------------------------------------CORE FUNCTIONS----------------------------------------*/
-
-    // Interface
-    void createWindow();
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
     // Vulkan
     void initVulkan();
