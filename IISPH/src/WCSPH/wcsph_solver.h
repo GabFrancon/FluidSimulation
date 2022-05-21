@@ -65,7 +65,6 @@ private:
 };
 
 
-
 class WCSPHSolver
 {
 public:
@@ -83,29 +82,28 @@ public:
 
     // assume an arbitrary grid with the size of res_x*res_y; a fluid mass fill up
     // the size of f_width, f_height; each cell is sampled with 2x2 particles.
-    void initScene(
-        const int res_x, const int res_y, const int f_width, const int f_height)
+
+    void initScene(const int res_x, const int res_y, const int f_width, const int f_height)
     {
         _pos.clear();
 
         _resX = res_x;
         _resY = res_y;
 
-        // set wall for boundary
-        _l = 0.5 * _h;
-        _r = static_cast<Real>(res_x) - 0.5 * _h;
-        _b = 0.5 * _h;
-        _t = static_cast<Real>(res_y) - 0.5 * _h;
-
-        // sample a fluid mass
-        for (int j = 0; j < f_height; ++j) {
-            for (int i = 0; i < f_width; ++i) {
+        // sample fluid mass
+        for (int j = 1 ; j < f_height +1 ; ++j) {
+            for (int i = 1 ; i < f_width + 1 ; ++i) {
                 _pos.push_back(Vec2f(i + 0.25, j + 0.25));
                 _pos.push_back(Vec2f(i + 0.75, j + 0.25));
                 _pos.push_back(Vec2f(i + 0.25, j + 0.75));
                 _pos.push_back(Vec2f(i + 0.75, j + 0.75));
             }
         }
+        _particleCount = _pos.size();
+
+        // sample wallS
+        addSolidBox(0, 0, _resY, _resX);
+        addSolidBox(4, 35, 13, 45);
 
         // make sure for the other particle quantities
         _vel = std::vector<Vec2f>(_pos.size(), Vec2f(0, 0));
@@ -113,18 +111,50 @@ public:
         _p = std::vector<Real>(_pos.size(), 0);
         _d = std::vector<Real>(_pos.size(), 0);
 
-        _col = std::vector<float>(_pos.size() * 4, 1.0); // RGBA
-        _vln = std::vector<float>(_pos.size() * 4, 0.0); // GL_LINES
-
-        _pidxInGrid = std::vector<std::vector<tIndex>>(resX() * resY(), std::vector<tIndex>());
-
+        // vizualisation
+        _col = std::vector<float>(_pos.size() * 4, 1.0);
+        _vln = std::vector<float>(_pos.size() * 4, 0.0);
+        for (tIndex i = 0; i < _pos.size(); ++i) {
+            _col[i * 4 + 0] = _d[i] / _d0;
+            _col[i * 4 + 1] = 0.0;
+            _col[i * 4 + 2] = 1 - _d[i] / _d0;
+        }
         updateColor();
+
+        // neighbors grid
+        _pidxInGrid = std::vector<std::vector<tIndex>>((float)resX() * resY(), std::vector<tIndex>());
+    }
+
+    void addSolidBox(int bj, int bi, int tj, int ti) {
+        // sample wall masses
+        for (int i = bi; i < ti; ++i) {
+            _pos.push_back(Vec2f(i + 0.25, bj + 0.25));
+            _pos.push_back(Vec2f(i + 0.75, bj + 0.25));
+            _pos.push_back(Vec2f(i + 0.25, bj + 0.75));
+            _pos.push_back(Vec2f(i + 0.75, bj + 0.75));
+        }
+        for (int i = bi; i < ti; ++i) {
+            _pos.push_back(Vec2f(i + 0.25, tj - 0.25));
+            _pos.push_back(Vec2f(i + 0.75, tj - 0.25));
+            _pos.push_back(Vec2f(i + 0.25, tj - 0.75));
+            _pos.push_back(Vec2f(i + 0.75, tj - 0.75));
+        }
+        for (int j = bj + 1; j < tj - 1; ++j) {
+            _pos.push_back(Vec2f(bi + 0.25, j + 0.25));
+            _pos.push_back(Vec2f(bi + 0.75, j + 0.25));
+            _pos.push_back(Vec2f(bi + 0.25, j + 0.75));
+            _pos.push_back(Vec2f(bi + 0.75, j + 0.75));
+        }
+        for (int j = bj + 1; j < tj - 1; ++j) {
+            _pos.push_back(Vec2f(ti - 0.25, j + 0.25));
+            _pos.push_back(Vec2f(ti - 0.75, j + 0.25));
+            _pos.push_back(Vec2f(ti - 0.25, j + 0.75));
+            _pos.push_back(Vec2f(ti - 0.75, j + 0.75));
+        }
     }
 
     void update()
     {
-        std::cout << '.' << std::flush;
-
         buildNeighbor();
         computeDensity();
         computePressure();
@@ -137,13 +167,13 @@ public:
         updateVelocity();
         updatePosition();
 
-        resolveCollision();
-
-        updateColor();
-        if (gShowVel) updateVelLine();
+        //updateColor();
+        //updateVelLine();
     }
 
-    tIndex particleCount() const { return _pos.size(); }
+    tIndex particleCount() const { return _particleCount; }
+    tIndex allParticleCount() const { return _pos.size(); }
+
     const Vec2f& position(const tIndex i) const { return _pos[i]; }
     const float& color(const tIndex i) const { return _col[i]; }
     const float& vline(const tIndex i) const { return _vln[i]; }
@@ -151,12 +181,7 @@ public:
     int resX() const { return _resX; }
     int resY() const { return _resY; }
 
-    Real equationOfState(
-        const Real d, const Real d0, const Real k,
-        const Real gamma = 7.0)
-    {
-        // TODO: pressure calculation
-    }
+    Real equationOfState(const Real d, const Real d0, const Real k, const Real gamma = 7.0) {}
 
     struct Couple {
         Couple(int _i, int _j) { x = _i; y = _j; }
@@ -192,10 +217,11 @@ public:
 private:
     void buildNeighbor()
     {
-        // TODO:
+        // clean all arrays
         for (auto& pid : _pidxInGrid)
             pid.clear();
 
+        // fill up the arrays pos
         for (int i = 0; i < _pos.size(); i++)
         {
             Vec2f particle = _pos[i];
@@ -207,53 +233,51 @@ private:
 
     void computeDensity()
     {
-        // TODO:
+        #pragma omp parallel for
         for (int i = 0; i < _pos.size(); i++)
         {
             Vec2f particle = _pos[i];
             int x = std::floor(particle.x);
             int y = std::floor(particle.y);
 
-            Real density = 0;
-            std::vector<Couple> neighborCells = getNeighbours(x, y);
+            _d[i] = 0.0f;
 
-            for (Couple cell : neighborCells)
+            for (Couple cell : getNeighbours(x, y))
             {
                 std::vector<tIndex> neighbors = _pidxInGrid[idx1d(cell.x, cell.y)];
-                for (tIndex n : neighbors)
-                    density += _m0 * _kernel.w(_pos[i] - _pos[n]);
+                for (tIndex &n : neighbors)
+                    _d[i] += _m0 * _kernel.w(_pos[i] - _pos[n]);
             }
-            _d[i] = density;
         }
     }
 
     void computePressure()
     {
-        // TODO:
-        for (int i = 0; i < _p.size(); i++)
+        #pragma omp parallel for
+        for (int i = 0; i < _pos.size(); i++)
             _p[i] = std::max(0.0, _k * (std::pow(_d[i] / _d0, 7) - 1));
     }
 
     void applyBodyForce()
     {
-        // TODO:
-        for (int i = 0; i < _acc.size(); i++)
+        #pragma omp parallel for
+        for (int i = 0; i < _particleCount; i++)
             _acc[i] = _g;
     }
 
     void applyPressureForce()
     {
-        // TODO:
-        for (int i = 0; i < _pos.size(); i++)
+        #pragma omp parallel for
+        for (int i = 0; i < _particleCount; i++)
         {
             Vec2f particle = _pos[i];
             int x = std::floor(particle.x);
             int y = std::floor(particle.y);
-            std::vector<Couple> neighborCells = getNeighbours(x, y);
-            for (Couple cell : neighborCells)
+
+            for (Couple cell : getNeighbours(x, y))
             {
                 std::vector<tIndex> neighbors = _pidxInGrid[idx1d(cell.x, cell.y)];
-                for (tIndex n : neighbors)
+                for (tIndex &n : neighbors)
                 {
                     Vec2f deltaPos = _pos[i] - _pos[n];
                     if (deltaPos.length() > 0.1)
@@ -265,17 +289,17 @@ private:
 
     void applyViscousForce()
     {
-        // TODO:
-        for (int i = 0; i < _pos.size(); i++)
+        #pragma omp parallel for
+        for (int i = 0; i < _particleCount; i++)
         {
             Vec2f particle = _pos[i];
             int x = std::floor(particle.x);
             int y = std::floor(particle.y);
-            std::vector<Couple> neighborCells = getNeighbours(x, y);
-            for (Couple cell : neighborCells)
+
+            for (Couple cell : getNeighbours(x, y))
             {
                 std::vector<tIndex> neighbors = _pidxInGrid[idx1d(cell.x, cell.y)];
-                for (tIndex n : neighbors)
+                for (tIndex &n : neighbors)
                 {
                     Vec2f deltaPos = _pos[i] - _pos[n];
                     Vec2f deltaVel = _vel[i] - _vel[n];
@@ -288,41 +312,21 @@ private:
 
     void updateVelocity()
     {
-        // TODO:
-        for (int i = 0; i < _vel.size(); i++)
+        #pragma omp parallel for
+        for (int i = 0; i < _particleCount; i++)
             _vel[i] += _acc[i] * _dt;
     }
 
     void updatePosition()
     {
-        // TODO:
-        for (int i = 0; i < _pos.size(); i++)
+        #pragma omp parallel for
+        for (int i = 0; i < _particleCount; i++)
             _pos[i] += _vel[i] * _dt;
-    }
-
-    // simple collision detection/resolution for each particle
-    void resolveCollision()
-    {
-        std::vector<tIndex> need_res;
-        for (tIndex i = 0; i < particleCount(); ++i) {
-            if (_pos[i].x<_l || _pos[i].y<_b || _pos[i].x>_r || _pos[i].y>_t)
-                need_res.push_back(i);
-        }
-
-        for (
-            std::vector<tIndex>::const_iterator it = need_res.begin();
-            it < need_res.end();
-            ++it) {
-            const Vec2f p0 = _pos[*it];
-            _pos[*it].x = clamp(_pos[*it].x, _l, _r);
-            _pos[*it].y = clamp(_pos[*it].y, _b, _t);
-            _vel[*it] = (_pos[*it] - p0) / _dt;
-        }
     }
 
     void updateColor()
     {
-        for (tIndex i = 0; i < particleCount(); ++i) {
+        for (tIndex i = 0; i < _pos.size(); ++i) {
             _col[i * 4 + 0] = _d[i] / _d0;
             _col[i * 4 + 1] = 0.2;
             _col[i * 4 + 2] = 1 - _d[i] / _d0;
@@ -331,7 +335,7 @@ private:
 
     void updateVelLine()
     {
-        for (tIndex i = 0; i < particleCount(); ++i) {
+        for (tIndex i = 0; i < _pos.size(); ++i) {
             _vln[i * 4 + 0] = _pos[i].x;
             _vln[i * 4 + 1] = _pos[i].y;
             _vln[i * 4 + 2] = _pos[i].x + _vel[i].x;
@@ -349,6 +353,7 @@ private:
     std::vector<Vec2f> _acc;      // acceleration
     std::vector<Real>  _p;        // pressure
     std::vector<Real>  _d;        // density
+    int _particleCount;           // number of moving particles
 
     std::vector< std::vector<tIndex> > _pidxInGrid; // will help you find neighbor particles
 
@@ -357,11 +362,7 @@ private:
 
     // simulation
     Real _dt;                     // time step
-
     int _resX, _resY;             // background grid resolution
-
-    // wall
-    Real _l, _r, _b, _t;          // wall (boundary)
 
     // SPH coefficients
     Real _nu;                     // viscosity coefficient
@@ -375,7 +376,4 @@ private:
     Real _eta;
     Real _c;                      // speed of sound
     Real _gamma;                  // EOS power factor
-
-    // options
-    bool gShowVel = false;
 };

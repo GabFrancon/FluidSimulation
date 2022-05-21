@@ -25,6 +25,7 @@ void VulkanEngine::init() {
 void VulkanEngine::run() {
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        updateScene();
         draw();
     }
     vkDeviceWaitIdle(device);
@@ -48,8 +49,6 @@ void VulkanEngine::draw() {
 
     vkResetFences(device, 1, &inFlightFences[currentFrame]);
     vkResetCommandBuffer(cmd, 0);
-
-    updateScene();
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
