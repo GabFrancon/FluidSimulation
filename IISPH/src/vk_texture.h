@@ -1,7 +1,7 @@
 #pragma once
 
 //local
-#include "vk_helper.h"
+#include "vk_device.h"
 
 
 class Texture {
@@ -14,9 +14,9 @@ public:
 	VkSampler sampler;
 	uint32_t  mipLevels;
 
-	void loadFromFile(VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, const char* filepath);
-	void setTextureSampler(VkPhysicalDevice physicalDevice, VkDevice device, VkFilter filter, VkSamplerAddressMode addressMode);
-	void generateMipmaps(VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, VkFormat imageFormat);
+	void loadFromFile(VulkanDevice* vulkanDevice, VkCommandPool commandPool, const char* filepath);
+	void setTextureSampler(VulkanDevice* vulkanDevice, VkFilter filter, VkSamplerAddressMode addressMode);
+	void generateMipmaps(VulkanDevice* vulkanDevice, VkCommandPool commandPool, VkFormat imageFormat);
 	void destroy(VkDevice device);
 };
 

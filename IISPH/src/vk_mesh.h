@@ -1,23 +1,25 @@
 #pragma once
 
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 
 //local
-#include "vk_helper.h"
+#include "vk_device.h"
 
 
 struct VertexInputDescription {
     std::array<VkVertexInputBindingDescription, 1> bindings;
-    std::array<VkVertexInputAttributeDescription, 3> attributes;
+    std::array<VkVertexInputAttributeDescription, 2> attributes;
 };
 
 struct Vertex {
     glm::vec3 pos;
-    glm::vec3 color;
     glm::vec2 texCoord;
 
     static VertexInputDescription getVertexDescription() {
@@ -34,32 +36,26 @@ struct Vertex {
         positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
         positionAttribute.offset = offsetof(Vertex, pos);
 
-        VkVertexInputAttributeDescription colorAttribute{};
-        colorAttribute.binding = 0;
-        colorAttribute.location = 1;
-        colorAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-        colorAttribute.offset = offsetof(Vertex, color);
-
         VkVertexInputAttributeDescription texCoordAttribute{};
         texCoordAttribute.binding = 0;
-        texCoordAttribute.location = 2;
+        texCoordAttribute.location = 1;
         texCoordAttribute.format = VK_FORMAT_R32G32_SFLOAT;
         texCoordAttribute.offset = offsetof(Vertex, texCoord);
 
         description.bindings = { mainBinding };
-        description.attributes = { positionAttribute, colorAttribute, texCoordAttribute };
+        description.attributes = { positionAttribute, texCoordAttribute };
 
         return description;
     }
     bool operator==(const Vertex& other) const {
-        return pos == other.pos && color == other.color && texCoord == other.texCoord;
+        return pos == other.pos && texCoord == other.texCoord;
     }
 };
 
 namespace std {
     template<> struct hash<Vertex> {
         size_t operator()(Vertex const& vertex) const {
-            return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
+            return (hash<glm::vec3>()(vertex.pos) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
         }
     };
 };

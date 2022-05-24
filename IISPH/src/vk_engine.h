@@ -1,59 +1,131 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/string_cast.hpp>
-
-
 // local
+#include "vk_device.h"
+#include "vk_tools.h"
 #include "vk_mesh.h"
 #include "vk_texture.h"
 #include "WCSPH/wcsph_solver.h"
 
 // std
-#include <chrono>
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
 #include <cstring>
-#include <map>
-#include <set>
 #include <cstdint>
 #include <limits>
 #include <algorithm>
 #include <unordered_map>
 
+
 // global constants
 static const uint32_t WIDTH  = 1200;
 static const uint32_t HEIGHT = 900;
 
-static const int MAX_FRAMES_OVERLAP = 2;
-static const int MAX_OBJECT         = 5000;
+static const int MAX_FRAMES_OVERLAP   = 2;
+static const int MAX_OBJECTS_RENDERED = 5000;
 
 static const std::string SPHERE_MODEL_PATH  = "assets/models/sphere.obj";
 static const std::string WATER_TEXTURE_PATH = "assets/textures/water.jpg";
 
 static const std::string BASIC_VERT_SHADER_PATH     = "shaders/basic_vert.spv";
 static const std::string INSTANCED_VERT_SHADER_PATH = "shaders/instanced_vert.spv";
+static const std::string COLORED_FRAG_SHADER_PATH   = "shaders/colored_frag.spv";
 static const std::string TEXTURED_FRAG_SHADER_PATH  = "shaders/textured_frag.spv";
 
-static const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
-static const std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-
-#ifdef NDEBUG
-static const bool enableValidationLayers = false;
-#else
-static const bool enableValidationLayers = true;
-#endif
 
 // struct definitions
+struct PipelineBuilder
+{
+    VkPipelineLayout pipelineLayout;
+    VkPipelineShaderStageCreateInfo shaderStages[2];
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    VkPipelineViewportStateCreateInfo viewportState{};
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+
+    VkPipeline buildPipeline(VkDevice device, VkRenderPass renderPass, const std::string& vertexShaderPath, const std::string& fragmentShaderPath) {
+        // set vertex shader
+        auto vertShaderCode = readFile(vertexShaderPath);
+        VkShaderModule vertShaderModule = createShaderModule(device, vertShaderCode);
+
+        shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+        shaderStages[0].module = vertShaderModule;
+        shaderStages[0].pName = "main";
+
+        // set fragment shader
+        auto fragShaderCode = readFile(fragmentShaderPath);
+        VkShaderModule fragShaderModule = createShaderModule(device, fragShaderCode);
+
+        shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        shaderStages[1].module = fragShaderModule;
+        shaderStages[1].pName = "main";
+
+        // build pipeline
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = shaderStages;
+        pipelineInfo.pVertexInputState = &vertexInputInfo;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDepthStencilState = &depthStencil;
+        pipelineInfo.layout = pipelineLayout;
+        pipelineInfo.renderPass = renderPass;
+        pipelineInfo.subpass = 0;
+        pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+
+        VkPipeline graphicsPipeline;
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create graphics pipeline!");
+        }
+
+        vkDestroyShaderModule(device, fragShaderModule, nullptr);
+        vkDestroyShaderModule(device, vertShaderModule, nullptr);
+
+        return graphicsPipeline;
+    }
+    VkShaderModule createShaderModule(VkDevice device, const std::vector<char>& code) {
+        VkShaderModuleCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = code.size();
+        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+        VkShaderModule shaderModule;
+        if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create shader module!");
+        }
+
+        return shaderModule;
+    }
+    std::vector<char> readFile(const std::string& filename) {
+        std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+        if (!file.is_open()) {
+            throw std::runtime_error("failed to open file!");
+        }
+
+        size_t fileSize = (size_t)file.tellg();
+        std::vector<char> buffer(fileSize);
+
+        file.seekg(0);
+        file.read(buffer.data(), fileSize);
+
+        file.close();
+        return buffer;
+    }
+};
+
 struct Material {
     VkPipeline pipeline;
     VkPipelineLayout pipelineLayout;
@@ -64,10 +136,12 @@ struct RenderObject {
     Mesh* mesh;
     Material* material;
     glm::mat4 modelMatrix;
+    glm::vec3 albedoColor;
 };
 
 struct ObjectData {
     alignas(16) glm::mat4 model;
+    alignas(16) glm::vec3 albedo;
 };
 
 struct Camera {
@@ -147,7 +221,7 @@ private:
     std::vector<AllocatedBuffer> objectsBuffers;
 
     // Graphics pipelines
-    bool wireframeModeOn  = false;
+    bool wireframeViewOn  = false;
     uint32_t currentFrame = 0;
 
     // Scene objects
@@ -160,6 +234,9 @@ private:
     float lastClockTime    = 0.0f;
     float currentClockTime = 0.0f;
     bool  appTimerStopped  = true;
+
+    // Exportation
+    bool recordingModeOn = false;
 
 
 
@@ -204,8 +281,11 @@ private:
     void renderScene(VkCommandBuffer commandBuffer);
     void drawObjects(VkCommandBuffer commandBuffer, RenderObject* firstObject, int objectsCount);
     void drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount);
-    void switchMode();
+    void switchWireframeView();
 
+    // Exportation
+    void savesFrames();
+    void saveScreenshot(const char* filename);
 
 
 
@@ -213,11 +293,7 @@ private:
     /*-----------------------------------------CORE MEMBERS-----------------------------------------*/
 
     // Vulkan
-    VkInstance instance;                                        // Vulkan library handle
-    VkDebugUtilsMessengerEXT debugMessenger;                    // Vulkan debug output handle
-    VkSurfaceKHR surface;                                       // Vulkan window surface
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;           // GPU chosen as default device
-    VkDevice device;                                            // Vulkan device for commands
+    VulkanDevice* vulkanDevice;
 
     // Swap chain
     VkSwapchainKHR swapChain;                                   // Vulkan rendered images handle
@@ -228,13 +304,11 @@ private:
 
     // Render pass
     VkRenderPass renderPass;
-    VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
     // Commands
     VkCommandPool commandPool;                                  // background allocator for command buffers
     std::vector<VkCommandBuffer> commandBuffers;                // array of recorded commands to submit to the GPU
-    VkQueue graphicsQueue;                                      // GPU's port we submit graphics commands into
-    VkQueue presentQueue;                                       // GPU's port we submit presentation commands into
+
 
     // Framebuffers
     std::vector<VkFramebuffer> swapChainFramebuffers;
@@ -253,22 +327,6 @@ private:
 
     // Vulkan
     void initVulkan();
-    void createInstance();
-    bool checkValidationLayerSupport();
-    std::vector<const char*> getRequiredExtensions();
-    void setupDebugMessenger();
-    void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
-    static VkResult createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
-    static void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
-    void createSurface();
-    void pickPhysicalDevice();
-    bool isDeviceSuitable(VkPhysicalDevice device);
-    bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-    int rateDeviceSuitability(VkPhysicalDevice device);
-    VkSampleCountFlagBits getMaxUsableSampleCount();
-    void createLogicalDevice();
-    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
     // Swap chain
     void initSwapChain();
@@ -276,7 +334,6 @@ private:
     void cleanupSwapChain();
     void recreateSwapChain();
     void createImageViews();
-    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);

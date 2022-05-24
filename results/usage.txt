@@ -1,0 +1,5 @@
+- install ffmpeg and add bin\*.exe to the environment variables
+
+- run in the command line, with desired framerate and resolution :
+
+	$ ffmpeg -framerate 60 -i screenshots/frame_%6d.ppm -s 1920x1080 -pix_fmt yuv420p sim_60fps.mp4

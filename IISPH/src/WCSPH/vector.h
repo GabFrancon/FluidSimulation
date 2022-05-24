@@ -16,8 +16,8 @@
 // have been supplied.
 // ----------------------------------------------------------------------------
 
-#ifndef _VECTOR_HPP_
-#define _VECTOR_HPP_
+#ifndef _VECTOR_H_
+#define _VECTOR_H_
 
 // std
 #include <iostream>
@@ -27,7 +27,7 @@
 
 
 typedef float Real;
-typedef long int tIndex;
+typedef long int Index;
 
 inline Real square(const Real a) { return a*a; }
 inline Real cube(const Real a) { return a*a*a; }
@@ -104,8 +104,8 @@ public:
     return Vector2<T2>(static_cast<T2>(x), static_cast<T2>(y));
   }
 
-  const T& operator[](const tIndex i) const { assert(i<D); return v[i]; }
-  T& operator[](const tIndex i)
+  const T& operator[](const Index i) const { assert(i<D); return v[i]; }
+  T& operator[](const Index i)
   {
     return const_cast<T &>(static_cast<const Vector2 &>(*this)[i]);
   }
@@ -122,12 +122,12 @@ public:
   }
 
   template<typename T2>
-  Vector2& increase(const tIndex di, const T2 d)
+  Vector2& increase(const Index di, const T2 d)
   {
     v[di] += static_cast<T>(d); return (*this);
   }
   template<typename T2>
-  Vector2 increased(const tIndex di, const T2 d) const
+  Vector2 increased(const Index di, const T2 d) const
   {
     return Vector2(*this).increase(di, d);
   }
@@ -149,8 +149,8 @@ public:
   T mulAll() const { return x*y; }
   T sumAll() const { return x+y; }
 
-  tIndex minorAxis() const { return (std::fabs(y)<std::fabs(x)) ? 1 : 0; }
-  tIndex majorAxis() const { return (std::fabs(y)>std::fabs(x)) ? 1 : 0; }
+  Index minorAxis() const { return (std::fabs(y)<std::fabs(x)) ? 1 : 0; }
+  Index majorAxis() const { return (std::fabs(y)>std::fabs(x)) ? 1 : 0; }
 
   T minValue() const { return std::min(x, y); }
   T maxValue() const { return std::max(x, y); }
@@ -200,4 +200,4 @@ public:
 typedef Vector2<Real> Vec2f;
 inline const Vec2f operator*(const Real s, const Vec2f &r) { return r*s; }
 
-#endif  /* _VECTOR_HPP_ */
+#endif  /* _VECTOR_H_ */

@@ -1,7 +1,9 @@
 #pragma once
 
-#define _USE_MATH_DEFINES
+#include <glm/vec3.hpp>
+#include <glm/exponential.hpp>
 
+#define _USE_MATH_DEFINES
 
 // local
 #include "vector.h"
@@ -13,6 +15,11 @@
 #define M_PI 3.141592
 #endif
 
+struct Cell {
+    Cell(int _i, int _j) { x = _i; y = _j; }
+    int x = 0;
+    int y = 0;
+};
 
 // SPH Kernel function: cubic spline
 class CubicSpline
@@ -44,7 +51,7 @@ public:
         else if (q < 2e0) return _c[_dim - 1] * (0.25 * cube(2e0 - q));
         return 0;
     }
-    Real derivative_f(const Real l) const
+    Real derivativeF(const Real l) const
     {
         const Real q = l / _h;
         if (q <= 1e0) return _gc[_dim - 1] * (-3e0 * q + 2.25 * square(q));
@@ -52,11 +59,11 @@ public:
         return 0;
     }
 
-    Real w(const Vec2f& rij) const { return f(rij.length()); }
-    Vec2f grad_w(const Vec2f& rij) const { return grad_w(rij, rij.length()); }
-    Vec2f grad_w(const Vec2f& rij, const Real len) const
+    Real W(const Vec2f& rij) const { return f(rij.length()); }
+    Vec2f gradW(const Vec2f& rij) const { return gradW(rij, rij.length()); }
+    Vec2f gradW(const Vec2f& rij, const Real len) const
     {
-        return derivative_f(len) * rij / len;
+        return derivativeF(len) * rij / len;
     }
 
 private:
@@ -69,87 +76,93 @@ class WCSPHSolver
 {
 public:
     explicit WCSPHSolver(
-        const Real nu = 0.08, const Real h = 0.5, const Real density = 1e3,
-        const Vec2f g = Vec2f(0, -9.8), const Real eta = 0.01, const Real gamma = 7.0) :
-        _kernel(h), _nu(nu), _h(h), _d0(density),
-        _g(g), _eta(eta), _gamma(gamma)
+        const Real h     = 0.5f ,   // particle spacing
+        const Real rho0  = 1e3f ,   // rest density
+        const Real nu    = 0.08f,   // kinematic viscosity
+        const Real eta   = 0.01f,   // compressibility
+        const Real gamma = 7.0f )   // EOS pow factor
     {
-        _dt = 0.0005;
-        _m0 = _d0 * _h * _h;
-        _c = std::fabs(_g.y) / _eta;
-        _k = _d0 * _c * _c / _gamma;
+        // fluid properties
+        _h     = h;
+        _rho0  = rho0;
+        _nu    = nu;
+        _eta   = eta;
+        _gamma = gamma;
+
+        // fixed constants
+        _dt = 0.0005f;
+        _g  = Vec2f(-0.0f, -9.8f);
+
+        // derived properties
+        _m0     = _rho0 * _h * _h;
+        _c      = std::fabs(_g.y) / _eta;
+        _k      = _rho0 * _c * _c / _gamma;
+        _kernel = CubicSpline(_h);
     }
 
-    // assume an arbitrary grid with the size of res_x*res_y; a fluid mass fill up
-    // the size of f_width, f_height; each cell is sampled with 2x2 particles.
 
-    void initScene(const int res_x, const int res_y, const int f_width, const int f_height)
-    {
-        _pos.clear();
-
-        _resX = res_x;
-        _resY = res_y;
+    void init(const int gridX, const int gridY, const int fluidWidth, const int fluidHeight) {
+        // - init a fluid mass of size (fluidWidth, fluitHeight)
+        // - create a grid of gridX * gridY cells starting from bottom left corner of the fluid
+        // - each cell of the grid is sampled with 2x2 particles
+        _resX = gridX;
+        _resY = gridY;
 
         // sample fluid mass
-        for (int j = 1 ; j < f_height +1 ; ++j) {
-            for (int i = 1 ; i < f_width + 1 ; ++i) {
-                _pos.push_back(Vec2f(i + 0.25, j + 0.25));
-                _pos.push_back(Vec2f(i + 0.75, j + 0.25));
-                _pos.push_back(Vec2f(i + 0.25, j + 0.75));
-                _pos.push_back(Vec2f(i + 0.75, j + 0.75));
+        _position.clear();
+        for (int j = 1 ; j < fluidHeight + 1 ; j++) {
+            for (int i = 1 ; i < fluidWidth + 1 ; i++) {
+                _position.push_back(Vec2f(i + 0.25, j + 0.25));
+                _position.push_back(Vec2f(i + 0.75, j + 0.25));
+                _position.push_back(Vec2f(i + 0.25, j + 0.75));
+                _position.push_back(Vec2f(i + 0.75, j + 0.75));
             }
         }
-        _particleCount = _pos.size();
+        _fluidCount = _position.size();
 
-        // sample wallS
-        addSolidBox(0, 0, _resY, _resX);
-        addSolidBox(4, 35, 13, 45);
+        // sample walls
+        addSolidBox(0, 0, _resX, _resY);
+        addSolidBox(35, 4, 45, 12);
 
-        // make sure for the other particle quantities
-        _vel = std::vector<Vec2f>(_pos.size(), Vec2f(0, 0));
-        _acc = std::vector<Vec2f>(_pos.size(), Vec2f(0, 0));
-        _p = std::vector<Real>(_pos.size(), 0);
-        _d = std::vector<Real>(_pos.size(), 0);
+        // color particles
+        _color.clear();
+        for (Index i = 0; i < _fluidCount; i++)
+            _color.push_back(denseColor);
+        for (Index i = _fluidCount; i < _position.size(); i++)
+            _color.push_back(wallColor);
 
-        // vizualisation
-        _col = std::vector<float>(_pos.size() * 4, 1.0);
-        _vln = std::vector<float>(_pos.size() * 4, 0.0);
-        for (tIndex i = 0; i < _pos.size(); ++i) {
-            _col[i * 4 + 0] = _d[i] / _d0;
-            _col[i * 4 + 1] = 0.0;
-            _col[i * 4 + 2] = 1 - _d[i] / _d0;
-        }
-        updateColor();
-
-        // neighbors grid
-        _pidxInGrid = std::vector<std::vector<tIndex>>((float)resX() * resY(), std::vector<tIndex>());
+        // init other particle quantities
+        _velocity = std::vector<Vec2f>(_position.size(), Vec2f(0, 0));
+        _acceleration = std::vector<Vec2f>(_position.size(), Vec2f(0, 0));
+        _pressure = std::vector<Real>(_position.size(), 0);
+        _density = std::vector<Real>(_position.size(), 0);
+        _neighborsGrid = std::vector<std::vector<Index>>(resX() * (size_t)resY(), std::vector<Index>());
     }
 
-    void addSolidBox(int bj, int bi, int tj, int ti) {
-        // sample wall masses
-        for (int i = bi; i < ti; ++i) {
-            _pos.push_back(Vec2f(i + 0.25, bj + 0.25));
-            _pos.push_back(Vec2f(i + 0.75, bj + 0.25));
-            _pos.push_back(Vec2f(i + 0.25, bj + 0.75));
-            _pos.push_back(Vec2f(i + 0.75, bj + 0.75));
+    void addSolidBox(int bottomX, int bottomY, int topX, int topY) {
+        for (int i = bottomX; i < topX; i++) {
+            _position.push_back(Vec2f(i + 0.25, bottomY + 0.25));
+            _position.push_back(Vec2f(i + 0.75, bottomY + 0.25));
+            _position.push_back(Vec2f(i + 0.25, bottomY + 0.75));
+            _position.push_back(Vec2f(i + 0.75, bottomY + 0.75));
         }
-        for (int i = bi; i < ti; ++i) {
-            _pos.push_back(Vec2f(i + 0.25, tj - 0.25));
-            _pos.push_back(Vec2f(i + 0.75, tj - 0.25));
-            _pos.push_back(Vec2f(i + 0.25, tj - 0.75));
-            _pos.push_back(Vec2f(i + 0.75, tj - 0.75));
+        for (int i = bottomX; i < topX; i++) {
+            _position.push_back(Vec2f(i + 0.25, topY - 0.25));
+            _position.push_back(Vec2f(i + 0.75, topY - 0.25));
+            _position.push_back(Vec2f(i + 0.25, topY - 0.75));
+            _position.push_back(Vec2f(i + 0.75, topY - 0.75));
         }
-        for (int j = bj + 1; j < tj - 1; ++j) {
-            _pos.push_back(Vec2f(bi + 0.25, j + 0.25));
-            _pos.push_back(Vec2f(bi + 0.75, j + 0.25));
-            _pos.push_back(Vec2f(bi + 0.25, j + 0.75));
-            _pos.push_back(Vec2f(bi + 0.75, j + 0.75));
+        for (int j = bottomY + 1; j < topY - 1; j++) {
+            _position.push_back(Vec2f(bottomX + 0.25, j + 0.25));
+            _position.push_back(Vec2f(bottomX + 0.75, j + 0.25));
+            _position.push_back(Vec2f(bottomX + 0.25, j + 0.75));
+            _position.push_back(Vec2f(bottomX + 0.75, j + 0.75));
         }
-        for (int j = bj + 1; j < tj - 1; ++j) {
-            _pos.push_back(Vec2f(ti - 0.25, j + 0.25));
-            _pos.push_back(Vec2f(ti - 0.75, j + 0.25));
-            _pos.push_back(Vec2f(ti - 0.25, j + 0.75));
-            _pos.push_back(Vec2f(ti - 0.75, j + 0.75));
+        for (int j = bottomY + 1; j < topY - 1; j++) {
+            _position.push_back(Vec2f(topX - 0.25, j + 0.25));
+            _position.push_back(Vec2f(topX - 0.75, j + 0.25));
+            _position.push_back(Vec2f(topX - 0.25, j + 0.75));
+            _position.push_back(Vec2f(topX - 0.75, j + 0.75));
         }
     }
 
@@ -159,94 +172,83 @@ public:
         computeDensity();
         computePressure();
 
-        _acc = std::vector<Vec2f>(_pos.size(), Vec2f(0, 0));
+        _acceleration = std::vector<Vec2f>(_position.size(), Vec2f(0, 0));
         applyBodyForce();
         applyPressureForce();
         applyViscousForce();
 
         updateVelocity();
         updatePosition();
-
-        //updateColor();
-        //updateVelLine();
+        updateColor();
     }
 
-    tIndex particleCount() const { return _particleCount; }
-    tIndex allParticleCount() const { return _pos.size(); }
+    const Index fluidCount() const { return _fluidCount; }
+    const Index particleCount() const { return _position.size(); }
+    const Vec2f& position(const Index i) const { return _position[i]; }
+    const glm::vec3& color(const Index i) const { return _color[i]; }
+    const int resX() const { return _resX; }
+    const int resY() const { return _resY; }
 
-    const Vec2f& position(const tIndex i) const { return _pos[i]; }
-    const float& color(const tIndex i) const { return _col[i]; }
-    const float& vline(const tIndex i) const { return _vln[i]; }
-
-    int resX() const { return _resX; }
-    int resY() const { return _resY; }
-
-    Real equationOfState(const Real d, const Real d0, const Real k, const Real gamma = 7.0) {}
-
-    struct Couple {
-        Couple(int _i, int _j) { x = _i; y = _j; }
-        int x = 0;
-        int y = 0;
-    };
-
-    std::vector<Couple> getNeighbours(int i, int j)
+private:
+    std::vector<Cell> getNeighbourCells(const int i, const int j)
     {
-        std::vector<Couple> neighbors;
-        neighbors.push_back(Couple(i, j));
+        std::vector<Cell> neighbors;
+        neighbors.push_back(Cell(i, j));
 
         if (i > 0)
-            neighbors.push_back(Couple(i - 1, j));
+            neighbors.push_back(Cell(i - 1, j));
         if (i < resX() - 1)
-            neighbors.push_back(Couple(i + 1, j));
+            neighbors.push_back(Cell(i + 1, j));
         if (j > 0)
-            neighbors.push_back(Couple(i, j - 1));
+            neighbors.push_back(Cell(i, j - 1));
         if (j < resY() - 1)
-            neighbors.push_back(Couple(i, j + 1));
+            neighbors.push_back(Cell(i, j + 1));
         if (i > 0 && j > 0)
-            neighbors.push_back(Couple(i - 1, j - 1));
+            neighbors.push_back(Cell(i - 1, j - 1));
         if (i < resX() - 1 && j > 0)
-            neighbors.push_back(Couple(i + 1, j - 1));
+            neighbors.push_back(Cell(i + 1, j - 1));
         if (i > 0 && j < resY() - 1)
-            neighbors.push_back(Couple(i - 1, j + 1));
+            neighbors.push_back(Cell(i - 1, j + 1));
         if (i < resX() - 1 && j < resY() - 1)
-            neighbors.push_back(Couple(i + 1, j + 1));
+            neighbors.push_back(Cell(i + 1, j + 1));
 
         return neighbors;
     }
+    
+    Index idx1d(const int i, const int j) { 
+        return i + j * resX(); 
+    }
 
-private:
     void buildNeighbor()
     {
-        // clean all arrays
-        for (auto& pid : _pidxInGrid)
-            pid.clear();
+        for (auto& indices : _neighborsGrid)
+            indices.clear();
 
-        // fill up the arrays pos
-        for (int i = 0; i < _pos.size(); i++)
+        for (int i = 0; i < _position.size(); i++)
         {
-            Vec2f particle = _pos[i];
+            Vec2f particle = _position[i];
             int x = std::floor(particle.x);
             int y = std::floor(particle.y);
-            _pidxInGrid[idx1d(x, y)].push_back(i);
+            _neighborsGrid[idx1d(x, y)].push_back(i);
         }
     }
 
     void computeDensity()
     {
         #pragma omp parallel for
-        for (int i = 0; i < _pos.size(); i++)
+        for (int i = 0; i < _position.size(); i++)
         {
-            Vec2f particle = _pos[i];
+            Vec2f particle = _position[i];
             int x = std::floor(particle.x);
             int y = std::floor(particle.y);
 
-            _d[i] = 0.0f;
+            _density[i] = 0.0f;
 
-            for (Couple cell : getNeighbours(x, y))
+            for (Cell cell : getNeighbourCells(x, y))
             {
-                std::vector<tIndex> neighbors = _pidxInGrid[idx1d(cell.x, cell.y)];
-                for (tIndex &n : neighbors)
-                    _d[i] += _m0 * _kernel.w(_pos[i] - _pos[n]);
+                std::vector<Index> neighbors = _neighborsGrid[idx1d(cell.x, cell.y)];
+                for (Index &n : neighbors)
+                    _density[i] += _m0 * _kernel.W(_position[i] - _position[n]);
             }
         }
     }
@@ -254,34 +256,34 @@ private:
     void computePressure()
     {
         #pragma omp parallel for
-        for (int i = 0; i < _pos.size(); i++)
-            _p[i] = std::max(0.0, _k * (std::pow(_d[i] / _d0, 7) - 1));
+        for (int i = 0; i < _position.size(); i++)
+            _pressure[i] = std::max(0.0f, _k * (std::pow(_density[i] / _rho0, _gamma) - 1));
     }
 
     void applyBodyForce()
     {
         #pragma omp parallel for
-        for (int i = 0; i < _particleCount; i++)
-            _acc[i] = _g;
+        for (int i = 0; i < _fluidCount; i++)
+            _acceleration[i] = _g;
     }
 
     void applyPressureForce()
     {
         #pragma omp parallel for
-        for (int i = 0; i < _particleCount; i++)
+        for (int i = 0; i < _fluidCount; i++)
         {
-            Vec2f particle = _pos[i];
+            Vec2f particle = _position[i];
             int x = std::floor(particle.x);
             int y = std::floor(particle.y);
 
-            for (Couple cell : getNeighbours(x, y))
+            for (Cell cell : getNeighbourCells(x, y))
             {
-                std::vector<tIndex> neighbors = _pidxInGrid[idx1d(cell.x, cell.y)];
-                for (tIndex &n : neighbors)
+                std::vector<Index> neighbors = _neighborsGrid[idx1d(cell.x, cell.y)];
+                for (Index &n : neighbors)
                 {
-                    Vec2f deltaPos = _pos[i] - _pos[n];
+                    Vec2f deltaPos = _position[i] - _position[n];
                     if (deltaPos.length() > 0.1)
-                        _acc[i] -= _m0 * (_p[i] / (_d[i] * _d[i]) + _p[n] / (_d[n] * _d[n])) * _kernel.grad_w(deltaPos);
+                        _acceleration[i] -= _m0 * (_pressure[i] / (_density[i] * _density[i]) + _pressure[n] / (_density[n] * _density[n])) * _kernel.gradW(deltaPos);
                 }
             }
         }
@@ -290,21 +292,21 @@ private:
     void applyViscousForce()
     {
         #pragma omp parallel for
-        for (int i = 0; i < _particleCount; i++)
+        for (int i = 0; i < _fluidCount; i++)
         {
-            Vec2f particle = _pos[i];
+            Vec2f particle = _position[i];
             int x = std::floor(particle.x);
             int y = std::floor(particle.y);
 
-            for (Couple cell : getNeighbours(x, y))
+            for (Cell cell : getNeighbourCells(x, y))
             {
-                std::vector<tIndex> neighbors = _pidxInGrid[idx1d(cell.x, cell.y)];
-                for (tIndex &n : neighbors)
+                std::vector<Index> neighbors = _neighborsGrid[idx1d(cell.x, cell.y)];
+                for (Index &n : neighbors)
                 {
-                    Vec2f deltaPos = _pos[i] - _pos[n];
-                    Vec2f deltaVel = _vel[i] - _vel[n];
+                    Vec2f deltaPos = _position[i] - _position[n];
+                    Vec2f deltaVel = _velocity[i] - _velocity[n];
                     if (deltaPos.length() > 0.1)
-                        _acc[i] += 2 * _nu * (_m0 / _d[n]) * deltaVel * deltaPos * _kernel.grad_w(deltaPos) / (deltaPos * deltaPos + 0.01 * _h);
+                        _acceleration[i] += 2 * _nu * (_m0 / _density[n]) * deltaVel * deltaPos * _kernel.gradW(deltaPos) / (deltaPos * deltaPos + 0.01 * _h);
                 }
             }
         }
@@ -313,67 +315,60 @@ private:
     void updateVelocity()
     {
         #pragma omp parallel for
-        for (int i = 0; i < _particleCount; i++)
-            _vel[i] += _acc[i] * _dt;
+        for (int i = 0; i < _fluidCount; i++)
+            _velocity[i] += _acceleration[i] * _dt;
     }
 
     void updatePosition()
     {
         #pragma omp parallel for
-        for (int i = 0; i < _particleCount; i++)
-            _pos[i] += _vel[i] * _dt;
+        for (int i = 0; i < _fluidCount; i++)
+            _position[i] += _velocity[i] * _dt;
     }
 
     void updateColor()
     {
-        for (tIndex i = 0; i < _pos.size(); ++i) {
-            _col[i * 4 + 0] = _d[i] / _d0;
-            _col[i * 4 + 1] = 0.2;
-            _col[i * 4 + 2] = 1 - _d[i] / _d0;
+        for (Index i = 0; i < _fluidCount; i++) {
+            _color[i].x = lightColor.x + (_density[i] / _rho0) * (denseColor.x - lightColor.x);
+            _color[i].y = lightColor.y + (_density[i] / _rho0) * (denseColor.y - lightColor.y);
+            _color[i].z = lightColor.z + (_density[i] / _rho0) * (denseColor.z - lightColor.z);
         }
     }
 
-    void updateVelLine()
-    {
-        for (tIndex i = 0; i < _pos.size(); ++i) {
-            _vln[i * 4 + 0] = _pos[i].x;
-            _vln[i * 4 + 1] = _pos[i].y;
-            _vln[i * 4 + 2] = _pos[i].x + _vel[i].x;
-            _vln[i * 4 + 3] = _pos[i].y + _vel[i].y;
-        }
-    }
 
-    inline tIndex idx1d(const int i, const int j) { return i + j * resX(); }
+    /*---------------------------------------CLASS MEMBERS-----------------------------------------------*/
 
+    // smooth kernel
     CubicSpline _kernel;
 
     // particle data
-    std::vector<Vec2f> _pos;      // position
-    std::vector<Vec2f> _vel;      // velocity
-    std::vector<Vec2f> _acc;      // acceleration
-    std::vector<Real>  _p;        // pressure
-    std::vector<Real>  _d;        // density
-    int _particleCount;           // number of moving particles
+    std::vector<Vec2f> _position;
+    std::vector<Vec2f> _velocity;
+    std::vector<Vec2f> _acceleration;
+    std::vector<Real>  _pressure;
+    std::vector<Real>  _density;
+    std::vector<glm::vec3> _color;
+    std::vector< std::vector<Index> > _neighborsGrid;
 
-    std::vector< std::vector<tIndex> > _pidxInGrid; // will help you find neighbor particles
-
-    std::vector<float> _col;    // particle color; just for visualization
-    std::vector<float> _vln;    // particle velocity lines; just for visualization
+    // visualization
+    glm::vec3 wallColor  = {  92 / 255.0f,  54 / 255.0f,  29 / 255.0f };
+    glm::vec3 lightColor = { 213 / 255.0f, 240 / 255.0f, 255 / 255.0f };
+    glm::vec3 denseColor = {   2 / 255.0f,  73 / 255.0f, 113 / 255.0f };
 
     // simulation
-    Real _dt;                     // time step
-    int _resX, _resY;             // background grid resolution
+    int _resX = 0;                // grid resolution on x-axis
+    int _resY = 0;                // grid resolution on y-axis
+    int _fluidCount = 0;          // number of fluid particles
 
     // SPH coefficients
-    Real _nu;                     // viscosity coefficient
-    Real _d0;                     // rest density
-    Real _h;                      // particle spacing (i.e., diameter)
+    Real _dt;                     // time step
+    Real _nu;                     // kinematic viscosity
+    Real _eta;                    // compressibility
+    Real _rho0;                   // rest density
+    Real _h;                      // particle spacing
     Vec2f _g;                     // gravity
-
     Real _m0;                     // rest mass
-    Real _k;                      // EOS coefficient
-
-    Real _eta;
     Real _c;                      // speed of sound
+    Real _k;                      // EOS coefficient
     Real _gamma;                  // EOS power factor
 };

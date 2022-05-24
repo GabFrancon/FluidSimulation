@@ -39,3 +39,6 @@ IISPH/x64/*
 *.vcxproj
 *.vcxproj.filters
 *.vcxproj.user
+
+# Others
+results/screenshots/*
