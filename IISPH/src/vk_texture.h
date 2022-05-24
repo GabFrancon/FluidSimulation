@@ -1,6 +1,5 @@
 #pragma once
 
-//local
 #include "vk_device.h"
 
 

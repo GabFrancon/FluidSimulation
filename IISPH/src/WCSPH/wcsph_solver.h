@@ -1,15 +1,9 @@
 #pragma once
 
-#include <glm/vec3.hpp>
-#include <glm/exponential.hpp>
-
-#define _USE_MATH_DEFINES
-
-// local
 #include "vector.h"
 
-// std
-#include <cmath>
+#include <glm/vec3.hpp>
+#include <glm/exponential.hpp>
 
 #ifndef M_PI
 #define M_PI 3.141592

@@ -2,6 +2,7 @@
 
 
 // initialization
+
 void VulkanDevice::createInstance() {
     if (enableValidationLayers && !checkValidationLayerSupport()) {
         throw std::runtime_error("validation layers requested, but not available!");
@@ -44,6 +45,7 @@ void VulkanDevice::createInstance() {
     vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
     std::cout << "\navailable extensions : " << extensionCount << std::endl;
 }
+
 void VulkanDevice::setupDebugMessenger() {
     if (!enableValidationLayers) return;
 
@@ -54,11 +56,13 @@ void VulkanDevice::setupDebugMessenger() {
         throw std::runtime_error("failed to set up debug messenger!");
     }
 }
+
 void VulkanDevice::createSurface(GLFWwindow* window) {
     if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
         throw std::runtime_error("failed to create window surface!");
     }
 }
+
 void VulkanDevice::pickPhysicalDevice() {
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
@@ -92,6 +96,7 @@ void VulkanDevice::pickPhysicalDevice() {
         throw std::runtime_error("failed to find a suitable GPU!");
     }
 }
+
 void VulkanDevice::createLogicalDevice() {
     QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
@@ -148,6 +153,7 @@ void VulkanDevice::createLogicalDevice() {
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
 }
+
 void VulkanDevice::destroy() {
     vkDestroyDevice(device, nullptr);
 
@@ -159,7 +165,9 @@ void VulkanDevice::destroy() {
     vkDestroyInstance(instance, nullptr);
 }
 
+
 // general
+
 VkCommandBuffer VulkanDevice::beginSingleTimeCommands(VkCommandPool commandPool) {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -178,6 +186,7 @@ VkCommandBuffer VulkanDevice::beginSingleTimeCommands(VkCommandPool commandPool)
 
     return commandBuffer;
 }
+
 void VulkanDevice::endSingleTimeCommands(VkCommandPool commandPool, VkCommandBuffer commandBuffer) {
     vkEndCommandBuffer(commandBuffer);
 
@@ -191,6 +200,7 @@ void VulkanDevice::endSingleTimeCommands(VkCommandPool commandPool, VkCommandBuf
 
     vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
+
 uint32_t VulkanDevice::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
@@ -203,6 +213,7 @@ uint32_t VulkanDevice::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
 
     throw std::runtime_error("failed to find suitable memory type!");
 }
+
 QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) {
     QueueFamilyIndices indices;
 
@@ -233,6 +244,7 @@ QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) {
     }
     return indices;
 }
+
 SwapChainSupportDetails VulkanDevice::querySwapChainSupport(VkPhysicalDevice device) {
     SwapChainSupportDetails details;
 
@@ -257,7 +269,9 @@ SwapChainSupportDetails VulkanDevice::querySwapChainSupport(VkPhysicalDevice dev
     return details;
 }
 
+
 // buffer
+
 AllocatedBuffer VulkanDevice::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
     AllocatedBuffer allocatedBuffer{};
 
@@ -287,6 +301,7 @@ AllocatedBuffer VulkanDevice::createBuffer(VkDeviceSize size, VkBufferUsageFlags
 
     return allocatedBuffer;
 }
+
 void VulkanDevice::copyBuffer(VkCommandPool commandPool, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands(commandPool);
 
@@ -297,7 +312,9 @@ void VulkanDevice::copyBuffer(VkCommandPool commandPool, VkBuffer srcBuffer, VkB
     endSingleTimeCommands(commandPool, commandBuffer);
 }
 
+
 // image
+
 AllocatedImage VulkanDevice::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties) {
     AllocatedImage allocatedImage{};
 
@@ -336,6 +353,7 @@ AllocatedImage VulkanDevice::createImage(uint32_t width, uint32_t height, uint32
 
     return allocatedImage;
 }
+
 VkImageView VulkanDevice::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels) {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -356,6 +374,7 @@ VkImageView VulkanDevice::createImageView(VkImage image, VkFormat format, VkImag
 
     return imageView;
 }
+
 void VulkanDevice::copyBufferToImage(VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands(commandPool);
 
@@ -381,6 +400,7 @@ void VulkanDevice::copyBufferToImage(VkCommandPool commandPool, VkBuffer buffer,
 
     endSingleTimeCommands(commandPool, commandBuffer);
 }
+
 void VulkanDevice::transitionImageLayout(VkCommandPool commandPool, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels) {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands(commandPool);
 
@@ -450,6 +470,7 @@ void VulkanDevice::transitionImageLayout(VkCommandPool commandPool, VkImage imag
 
 
 // helper functions
+
 bool VulkanDevice::checkValidationLayerSupport() {
     uint32_t layerCount;
     vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
@@ -472,6 +493,7 @@ bool VulkanDevice::checkValidationLayerSupport() {
     }
     return true;
 }
+
 std::vector<const char*> VulkanDevice::getRequiredExtensions() {
     uint32_t glfwExtensionCount = 0;
     const char** glfwExtensions;
@@ -485,6 +507,7 @@ std::vector<const char*> VulkanDevice::getRequiredExtensions() {
 
     return extensions;
 }
+
 void VulkanDevice::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
     createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -492,6 +515,7 @@ void VulkanDevice::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateI
     createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     createInfo.pfnUserCallback = debugCallback;
 }
+
 VkResult VulkanDevice::createDebugUtilsMessengerEXT(const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
     auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
     if (func != nullptr) {
@@ -501,6 +525,7 @@ VkResult VulkanDevice::createDebugUtilsMessengerEXT(const VkDebugUtilsMessengerC
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 }
+
 VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDevice::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
     if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
         std::cerr << "[ERROR] validation layer: " << pCallbackData->pMessage << std::endl;
@@ -511,12 +536,14 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDevice::debugCallback(VkDebugUtilsMessageSe
 
     return VK_FALSE;
 }
+
 void VulkanDevice::DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
     auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
     if (func != nullptr) {
         func(instance, debugMessenger, pAllocator);
     }
 }
+
 bool VulkanDevice::isDeviceSuitable(VkPhysicalDevice device) {
     QueueFamilyIndices indices = findQueueFamilies(device);
 
@@ -533,6 +560,7 @@ bool VulkanDevice::isDeviceSuitable(VkPhysicalDevice device) {
 
     return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
 }
+
 bool VulkanDevice::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     uint32_t extensionCount;
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
@@ -548,6 +576,7 @@ bool VulkanDevice::checkDeviceExtensionSupport(VkPhysicalDevice device) {
 
     return requiredExtensions.empty();
 }
+
 int VulkanDevice::rateDeviceSuitability(VkPhysicalDevice device) {
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -572,6 +601,7 @@ int VulkanDevice::rateDeviceSuitability(VkPhysicalDevice device) {
 
     return score;
 }
+
 VkSampleCountFlagBits VulkanDevice::getMaxUsableSampleCount() {
     VkPhysicalDeviceProperties physicalDeviceProperties;
     vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);

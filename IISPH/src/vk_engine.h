@@ -1,30 +1,19 @@
 #pragma once
 
-// local
 #include "vk_device.h"
+#include "vk_swapchain.h"
+#include "vk_drawhandler.h"
 #include "vk_tools.h"
 #include "vk_mesh.h"
 #include "vk_texture.h"
 #include "WCSPH/wcsph_solver.h"
 
-// std
-#include <iostream>
-#include <fstream>
-#include <stdexcept>
-#include <cstdlib>
-#include <vector>
-#include <cstring>
-#include <cstdint>
-#include <limits>
-#include <algorithm>
-#include <unordered_map>
 
 
 // global constants
 static const uint32_t WIDTH  = 1200;
 static const uint32_t HEIGHT = 900;
 
-static const int MAX_FRAMES_OVERLAP   = 2;
 static const int MAX_OBJECTS_RENDERED = 5000;
 
 static const std::string SPHERE_MODEL_PATH  = "assets/models/sphere.obj";
@@ -198,31 +187,32 @@ public:
 
 private:
 
-    /*---------------------------------------EDITABLE MEMBERS---------------------------------------*/
+    /*---------------------------------------CLASS MEMBERS---------------------------------------*/
 
     // Interface
     GLFWwindow* window;
 
-    // Descriptor handlers
+    // Vulkan
+    VulkanDevice* vulkanDevice;
+    VulkanSwapChain* swapChain;
+    VkRenderPass renderPass;
+    VulkanDrawHandler* vulkanDrawHandler;
+
+    // Descriptors
     VkDescriptorPool descriptorPool;
     VkDescriptorSetLayout globalSetLayout;
     VkDescriptorSetLayout objectsSetLayout;
     VkDescriptorSetLayout textureSetLayout;
+    std::vector<VkDescriptorSet> globalDescriptors;
+    std::vector<AllocatedBuffer> cameraBuffers;
+    std::vector<VkDescriptorSet> objectsDescriptors;
+    std::vector<AllocatedBuffer> objectsBuffers;
+    uint32_t currentFrame = 0;
 
     // Assets
     std::unordered_map<std::string, Mesh> meshes;
     std::unordered_map<std::string, Texture> textures;
     std::unordered_map<std::string, Material> materials;
-
-    // Uniform buffers and descriptors
-    std::vector<VkDescriptorSet> globalDescriptors;
-    std::vector<AllocatedBuffer> cameraBuffers;
-    std::vector<VkDescriptorSet> objectsDescriptors;
-    std::vector<AllocatedBuffer> objectsBuffers;
-
-    // Graphics pipelines
-    bool wireframeViewOn  = false;
-    uint32_t currentFrame = 0;
 
     // Scene objects
     Camera camera;
@@ -233,10 +223,13 @@ private:
     float appTimer         = 0.0f;
     float lastClockTime    = 0.0f;
     float currentClockTime = 0.0f;
-    bool  appTimerStopped  = true;
 
-    // Exportation
-    bool recordingModeOn = false;
+    // Flags
+    bool appTimerStopped    = true;
+    bool recordingModeOn    = false;
+    bool framebufferResized = false;
+    bool wireframeViewOn    = false;
+
 
 
 
@@ -248,10 +241,22 @@ private:
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
     static void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
-    // Descriptors
+    // Vulkan
+    void initDevice();
+    void initSwapChain();
+    void initRenderPass();
+    void initDrawHandler();
+    void cleanupSwapChain();
+    void recreateSwapChain();
+
+    // Descriptor handlers and data
     void initDescriptors();
     void createDescriptorPool();
     void createDescriptorLayouts();
+    void createDescriptorBuffers();
+    void createDescriptorSets();
+    void mapCameraData();
+    void mapObjectsData();
 
     // Assets
     void      loadAssets();
@@ -264,16 +269,11 @@ private:
     Mesh*     getMesh(const std::string& name);
     Material* getMaterial(const std::string& name);
 
-    //Uniform values
-    void createUniformBuffers();
-    void createUniformSets();
-    void mapCameraData();
-    void mapObjectsData();
-
     // Graphics pipelines
     void             initGraphicsPipelines();
     VkPipelineLayout createPipelineLayout();
     VkPipeline       createPipeline(VkPipelineLayout layout, const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode);
+    void             switchWireframeView();
 
     // Scene Rendering
     void initScene();
@@ -281,81 +281,8 @@ private:
     void renderScene(VkCommandBuffer commandBuffer);
     void drawObjects(VkCommandBuffer commandBuffer, RenderObject* firstObject, int objectsCount);
     void drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount);
-    void switchWireframeView();
 
     // Exportation
     void savesFrames();
     void saveScreenshot(const char* filename);
-
-
-
-
-    /*-----------------------------------------CORE MEMBERS-----------------------------------------*/
-
-    // Vulkan
-    VulkanDevice* vulkanDevice;
-
-    // Swap chain
-    VkSwapchainKHR swapChain;                                   // Vulkan rendered images handle
-    std::vector<VkImage> swapChainImages;                       // array of images from the swapchain
-    std::vector<VkImageView> swapChainImageViews;               // array of image-views from the swapchain
-    VkFormat swapChainImageFormat;                              // image format expected by the windowing system
-    VkExtent2D swapChainExtent;                                 // dimensions of the swapchain
-
-    // Render pass
-    VkRenderPass renderPass;
-
-    // Commands
-    VkCommandPool commandPool;                                  // background allocator for command buffers
-    std::vector<VkCommandBuffer> commandBuffers;                // array of recorded commands to submit to the GPU
-
-
-    // Framebuffers
-    std::vector<VkFramebuffer> swapChainFramebuffers;
-    ImageMap colorImage;
-    ImageMap depthImage;
-    bool framebufferResized = false;
-
-    // Sync structures
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
-
-
-
-    /*----------------------------------------CORE FUNCTIONS----------------------------------------*/
-
-    // Vulkan
-    void initVulkan();
-
-    // Swap chain
-    void initSwapChain();
-    void createSwapChain();
-    void cleanupSwapChain();
-    void recreateSwapChain();
-    void createImageViews();
-    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
-
-    // Render pass
-    void initRenderPass();
-    void createDefaultRenderPass();
-
-    // Commands
-    void initCommands();
-    void createCommandPool();
-    void createCommandBuffers();
-
-    // Frambuffers
-    void initFramebuffers();
-    void createFramebuffers();
-    void createColorResources();
-    void createDepthResources();
-    VkFormat findDepthFormat();
-    VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
-
-    // Sync structures
-    void initSyncStructures();
-    void createSyncObjects();
 };
