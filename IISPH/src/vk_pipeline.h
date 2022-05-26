@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vk_device.h"
+#include "vk_context.h"
 #include "vk_mesh.h"
 
 
@@ -8,7 +8,7 @@
 class VulkanPipeline
 {
 public:
-    VulkanDevice* device;
+    VulkanContext* context;
 
 	VkPipeline vkPipeline;
 	VkPipelineLayout pipelineLayout;
@@ -18,8 +18,8 @@ public:
     VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL;
 
     VulkanPipeline(){}
-    VulkanPipeline(VulkanDevice* vulkanDevice, const std::string& vertexPath, const std::string& fragmentPath, VkPolygonMode mode) {
-        device = vulkanDevice;
+    VulkanPipeline(VulkanContext* vulkanContext, const std::string& vertexPath, const std::string& fragmentPath, VkPolygonMode mode) {
+        context = vulkanContext;
         polygonMode = mode;
         vertexShader = readFile(vertexPath);
         fragmentShader = readFile(fragmentPath);

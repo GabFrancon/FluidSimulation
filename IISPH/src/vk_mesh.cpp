@@ -46,36 +46,36 @@ void Mesh::upload(VkCommandPool commandPool) {
     VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
 
     AllocatedBuffer vertexStagingBuffer{};
-    vertexStagingBuffer = device->createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    vertexStagingBuffer = context->createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void* vertexData;
-    vkMapMemory(device->vkDevice, vertexStagingBuffer.allocation, 0, vertexBufferSize, 0, &vertexData);
+    vkMapMemory(context->device, vertexStagingBuffer.allocation, 0, vertexBufferSize, 0, &vertexData);
     memcpy(vertexData, vertices.data(), (size_t)vertexBufferSize);
-    vkUnmapMemory(device->vkDevice, vertexStagingBuffer.allocation);
+    vkUnmapMemory(context->device, vertexStagingBuffer.allocation);
 
-    vertexBuffer = device->createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    device->copyBuffer(commandPool, vertexStagingBuffer.buffer, vertexBuffer.buffer, vertexBufferSize);
+    vertexBuffer = context->createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    context->copyBuffer(commandPool, vertexStagingBuffer.buffer, vertexBuffer.buffer, vertexBufferSize);
 
-    vertexStagingBuffer.destroy(device->vkDevice);
+    vertexStagingBuffer.destroy(context->device);
 
     // Index buffer
     VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
 
     AllocatedBuffer indexStagingBuffer{};
-    indexStagingBuffer = device->createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    indexStagingBuffer = context->createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void* indexData{};
-    vkMapMemory(device->vkDevice, indexStagingBuffer.allocation, 0, indexBufferSize, 0, &indexData);
+    vkMapMemory(context->device, indexStagingBuffer.allocation, 0, indexBufferSize, 0, &indexData);
     memcpy(indexData, indices.data(), (size_t)indexBufferSize);
-    vkUnmapMemory(device->vkDevice, indexStagingBuffer.allocation);
+    vkUnmapMemory(context->device, indexStagingBuffer.allocation);
 
-    indexBuffer = device->createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    device->copyBuffer(commandPool, indexStagingBuffer.buffer, indexBuffer.buffer, indexBufferSize);
+    indexBuffer = context->createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    context->copyBuffer(commandPool, indexStagingBuffer.buffer, indexBuffer.buffer, indexBufferSize);
 
-    indexStagingBuffer.destroy(device->vkDevice);
+    indexStagingBuffer.destroy(context->device);
 }
 
 void Mesh::destroy() {
-    indexBuffer.destroy(device->vkDevice);
-    vertexBuffer.destroy(device->vkDevice);
+    indexBuffer.destroy(context->device);
+    vertexBuffer.destroy(context->device);
 }

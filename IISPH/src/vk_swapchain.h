@@ -1,12 +1,12 @@
 #pragma once
 
-#include "vk_device.h"
+#include "vk_context.h"
 
 
 class VulkanSwapChain
 {
 public:
-    VulkanDevice* device;
+    VulkanContext* context;
 
     VkSwapchainKHR vkSwapChain;                         // Vulkan rendered images handler
     std::vector<VkImage> images;                       // images from the swapchain
@@ -21,7 +21,7 @@ public:
 
 
     // initialization
-    VulkanSwapChain(VulkanDevice* device) : device(device) {}
+    VulkanSwapChain(VulkanContext* context) : context(context) {}
     void createSwapChain(GLFWwindow* window);
     void createImageViews();
     void createFramebuffers(VkCommandPool commandPool, VkRenderPass renderPass);

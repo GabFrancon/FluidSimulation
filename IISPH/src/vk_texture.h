@@ -1,11 +1,11 @@
 #pragma once
 
-#include "vk_device.h"
+#include "vk_context.h"
 
 
 class Texture {
 public:
-	VulkanDevice* device;
+	VulkanContext* context;
 
 	int texWidth;
 	int texHeight;
@@ -16,7 +16,7 @@ public:
 	uint32_t  mipLevels;
 
 	Texture() {}
-	Texture(VulkanDevice* device) : device(device) {}
+	Texture(VulkanContext* context) : context(context) {}
 
 	void loadFromFile(VkCommandPool commandPool, const char* filepath);
 	void setTextureSampler(VkFilter filter, VkSamplerAddressMode addressMode);

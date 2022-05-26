@@ -84,13 +84,13 @@ struct ImageMap {
 
 
 
-class VulkanDevice {
+class VulkanContext {
 public:
     VkInstance instance;                                        // Vulkan library handle
     VkDebugUtilsMessengerEXT debugMessenger;                    // Vulkan debug output handle
     VkSurfaceKHR surface;                                       // Vulkan window surface
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;           // GPU chosen as default device
-    VkDevice vkDevice;                                          // Vulkan device for commands
+    VkDevice device;                                            // Vulkan device for commands
     VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;  // Multisampling count
     VkQueue graphicsQueue;                                      // GPU's port we submit graphics commands into
     VkQueue presentQueue;                                       // GPU's port we submit presentation commands into

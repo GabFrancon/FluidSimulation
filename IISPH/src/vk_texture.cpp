@@ -14,25 +14,25 @@ void Texture::loadFromFile(VkCommandPool commandPool, const char* filepath) {
 
     AllocatedBuffer stagingBuffer{};
     VkDeviceSize imageSize = static_cast<VkDeviceSize>(texWidth) * texHeight * 4;
-    stagingBuffer = device->createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    stagingBuffer = context->createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void* data;
-    vkMapMemory(device->vkDevice, stagingBuffer.allocation, 0, imageSize, 0, &data);
+    vkMapMemory(context->device, stagingBuffer.allocation, 0, imageSize, 0, &data);
     memcpy(data, pixels, static_cast<size_t>(imageSize));
-    vkUnmapMemory(device->vkDevice, stagingBuffer.allocation);
+    vkUnmapMemory(context->device, stagingBuffer.allocation);
 
     stbi_image_free(pixels);
 
-    albedoMap.allocatedImage = device->createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    albedoMap.allocatedImage = context->createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    device->transitionImageLayout(commandPool, albedoMap.allocatedImage.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
-    device->copyBufferToImage(commandPool, stagingBuffer.buffer, albedoMap.allocatedImage.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+    context->transitionImageLayout(commandPool, albedoMap.allocatedImage.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
+    context->copyBufferToImage(commandPool, stagingBuffer.buffer, albedoMap.allocatedImage.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 
-    stagingBuffer.destroy(device->vkDevice);
+    stagingBuffer.destroy(context->device);
 
     generateMipmaps(commandPool, VK_FORMAT_R8G8B8A8_SRGB);
 
-    albedoMap.imageView = device->createImageView(albedoMap.allocatedImage.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+    albedoMap.imageView = context->createImageView(albedoMap.allocatedImage.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
     setTextureSampler(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 }
 
@@ -47,7 +47,7 @@ void Texture::setTextureSampler(VkFilter filter, VkSamplerAddressMode addressMod
     samplerInfo.anisotropyEnable = VK_TRUE;
 
     VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(device->physicalDevice, &properties);
+    vkGetPhysicalDeviceProperties(context->physicalDevice, &properties);
     samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -58,20 +58,20 @@ void Texture::setTextureSampler(VkFilter filter, VkSamplerAddressMode addressMod
     samplerInfo.maxLod = static_cast<float>(mipLevels);
     samplerInfo.mipLodBias = 0.0f;
 
-    if (vkCreateSampler(device->vkDevice, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
+    if (vkCreateSampler(context->device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture sampler!");
     }
 }
 
 void Texture::generateMipmaps(VkCommandPool commandPool, VkFormat imageFormat) {
     VkFormatProperties formatProperties;
-    vkGetPhysicalDeviceFormatProperties(device->physicalDevice, imageFormat, &formatProperties);
+    vkGetPhysicalDeviceFormatProperties(context->physicalDevice, imageFormat, &formatProperties);
 
     if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
         throw std::runtime_error("texture image format does not support linear blitting!");
     }
 
-    VkCommandBuffer commandBuffer = device->beginSingleTimeCommands(commandPool);
+    VkCommandBuffer commandBuffer = context->beginSingleTimeCommands(commandPool);
 
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -147,10 +147,10 @@ void Texture::generateMipmaps(VkCommandPool commandPool, VkFormat imageFormat) {
         0, nullptr,
         1, &barrier);
 
-    device->endSingleTimeCommands(commandPool, commandBuffer);
+    context->endSingleTimeCommands(commandPool, commandBuffer);
 }
 
 void Texture::destroy() {
-    vkDestroySampler(device->vkDevice, sampler, nullptr);
-    albedoMap.destroy(device->vkDevice);
+    vkDestroySampler(context->device, sampler, nullptr);
+    albedoMap.destroy(context->device);
 }

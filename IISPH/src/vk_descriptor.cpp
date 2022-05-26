@@ -3,10 +3,10 @@
 
 void VulkanDescriptor::createBuffers() {
 	VkDeviceSize cameraBufferSize = sizeof(CameraData);
-	cameraBuffer = device->createBuffer(cameraBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	cameraBuffer = context->createBuffer(cameraBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     VkDeviceSize objectsBufferSize = sizeof(ObjectData) * maxObjectsToRender;
-	objectsBuffer = device->createBuffer(objectsBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	objectsBuffer = context->createBuffer(objectsBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
 void VulkanDescriptor::allocateGlobalDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout layout) {
@@ -16,7 +16,7 @@ void VulkanDescriptor::allocateGlobalDescriptorSet(VkDescriptorPool descriptorPo
     globalAllocInfo.descriptorSetCount = 1;
     globalAllocInfo.pSetLayouts = &layout;
 
-    if (vkAllocateDescriptorSets(device->vkDevice, &globalAllocInfo, &globalDescriptorSet) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(context->device, &globalAllocInfo, &globalDescriptorSet) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate global descriptor set!");
     }
 }
@@ -28,7 +28,7 @@ void VulkanDescriptor::allocateObjectsDescriptorSet(VkDescriptorPool descriptorP
     objectsAllocInfo.descriptorSetCount = 1;
     objectsAllocInfo.pSetLayouts = &layout;
 
-    if (vkAllocateDescriptorSets(device->vkDevice, &objectsAllocInfo, &objectsDescriptorSet) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(context->device, &objectsAllocInfo, &objectsDescriptorSet) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate descriptor set!");
     }
 }
@@ -63,10 +63,10 @@ void VulkanDescriptor::updateDescriptors() {
     descriptorWrites[1].descriptorCount = 1;
     descriptorWrites[1].pBufferInfo = &objectsBufferInfo;
 
-    vkUpdateDescriptorSets(device->vkDevice, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+    vkUpdateDescriptorSets(context->device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 }
 
 void VulkanDescriptor::destroy() {
-    cameraBuffer.destroy(device->vkDevice);
-    objectsBuffer.destroy(device->vkDevice);
+    cameraBuffer.destroy(context->device);
+    objectsBuffer.destroy(context->device);
 }

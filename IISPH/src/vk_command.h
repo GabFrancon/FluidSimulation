@@ -1,11 +1,11 @@
 #pragma once
 
-#include "vk_device.h"
+#include "vk_context.h"
 
 
 class VulkanCommand {
 public:
-    VulkanDevice* device;
+    VulkanContext* context;
 
     VkCommandBuffer commandBuffer;
     VkSemaphore imageAvailableSemaphore;
@@ -14,7 +14,7 @@ public:
 
 
     // initialization
-    VulkanCommand(VulkanDevice* device) : device(device) {}
+    VulkanCommand(VulkanContext* context) : context(context) {}
     void createCommandBuffer(VkCommandPool commandPool);
     void createSyncStructures();
     void destroy();

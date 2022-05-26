@@ -1,20 +1,21 @@
 #pragma once
 
-#include "vk_device.h"
+#include "vk_context.h"
 #include "vk_swapchain.h"
 #include "vk_command.h"
 #include "vk_descriptor.h"
 #include "vk_material.h"
-#include "vk_tools.h"
 #include "vk_mesh.h"
 #include "vk_texture.h"
+#include "vk_tools.h"
+
 #include "WCSPH/wcsph_solver.h"
 
 
 
 // global constants
-static const uint32_t WIDTH  = 1200;
-static const uint32_t HEIGHT = 900;
+static const uint32_t WIDTH  = 1920;
+static const uint32_t HEIGHT = 1080;
 
 static const int MAX_OBJECTS_RENDERED  = 5000;
 static const int MAX_MATERIALS_CREATED = 10;
@@ -92,7 +93,7 @@ private:
     GLFWwindow* window;
 
     // Vulkan core
-    VulkanDevice* device;
+    VulkanContext* context;
     VulkanSwapChain* swapChain;
     VkRenderPass renderPass;
 
@@ -139,7 +140,7 @@ private:
     static void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     // Vulkan core
-    void initDevice();
+    void initContext();
     void initSwapChain();
     void createRenderPass();
     void cleanupSwapChain();

@@ -13,7 +13,7 @@ void Material::updateTexture(VkDescriptorSetLayout layout, VkDescriptorPool desc
     textureAllocInfo.descriptorSetCount = 1;
     textureAllocInfo.pSetLayouts = &layout;
 
-    if (vkAllocateDescriptorSets(device->vkDevice, &textureAllocInfo, &textureDescriptor) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(context->device, &textureAllocInfo, &textureDescriptor) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate texture descriptor set!");
     }
 
@@ -31,5 +31,5 @@ void Material::updateTexture(VkDescriptorSetLayout layout, VkDescriptorPool desc
     descriptorWrite.descriptorCount = 1;
     descriptorWrite.pImageInfo = &textureImageInfo;
 
-    vkUpdateDescriptorSets(device->vkDevice, 1, &descriptorWrite, 0, nullptr);
+    vkUpdateDescriptorSets(context->device, 1, &descriptorWrite, 0, nullptr);
 }

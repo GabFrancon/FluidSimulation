@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vk_device.h"
+#include "vk_context.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -61,7 +61,7 @@ namespace std {
 
 class Mesh {
 public:
-    VulkanDevice* device;
+    VulkanContext* context;
 
     std::vector<Vertex> vertices;
     AllocatedBuffer vertexBuffer;
@@ -70,7 +70,7 @@ public:
     AllocatedBuffer indexBuffer;
 
     Mesh(){}
-    Mesh(VulkanDevice* device) : device(device) { }
+    Mesh(VulkanContext* context) : context(context) { }
 
     void loadFromObj(const char* filepath);
     void upload(VkCommandPool commandPool);

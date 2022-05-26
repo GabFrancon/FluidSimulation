@@ -7,7 +7,7 @@ void VulkanPipeline::createPipelineLayout(std::vector<VkDescriptorSetLayout> des
     pipelineLayoutInfo.setLayoutCount = descriptorLayouts.size();
     pipelineLayoutInfo.pSetLayouts = descriptorLayouts.data();
 
-    if (vkCreatePipelineLayout(device->vkDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+    if (vkCreatePipelineLayout(context->device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");
     }
 }
@@ -83,7 +83,7 @@ void VulkanPipeline::createPipeline(VkExtent2D extent, VkRenderPass renderPass) 
     // multisampling
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_TRUE; // enable sample shading in the pipeline
-    multisampling.rasterizationSamples = device->msaaSamples;
+    multisampling.rasterizationSamples = context->msaaSamples;
     multisampling.minSampleShading = .2f; // closer to one is smoother
 
     // color blending
@@ -126,12 +126,12 @@ void VulkanPipeline::createPipeline(VkExtent2D extent, VkRenderPass renderPass) 
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-    if (vkCreateGraphicsPipelines(device->vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vkPipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vkPipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create graphics pipeline!");
     }
 
-    vkDestroyShaderModule(device->vkDevice, fragShaderModule, nullptr);
-    vkDestroyShaderModule(device->vkDevice, vertShaderModule, nullptr);
+    vkDestroyShaderModule(context->device, fragShaderModule, nullptr);
+    vkDestroyShaderModule(context->device, vertShaderModule, nullptr);
 
 }
 
@@ -159,7 +159,7 @@ VkShaderModule VulkanPipeline::createShaderModule(const std::vector<char>& code)
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
     VkShaderModule shaderModule;
-    if (vkCreateShaderModule(device->vkDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+    if (vkCreateShaderModule(context->device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
         throw std::runtime_error("failed to create shader module!");
     }
 
@@ -167,6 +167,6 @@ VkShaderModule VulkanPipeline::createShaderModule(const std::vector<char>& code)
 }
 
 void VulkanPipeline::destroy() {
-    vkDestroyPipeline(device->vkDevice, vkPipeline, nullptr);
-    vkDestroyPipelineLayout(device->vkDevice, pipelineLayout, nullptr);
+    vkDestroyPipeline(context->device, vkPipeline, nullptr);
+    vkDestroyPipelineLayout(context->device, pipelineLayout, nullptr);
 }

@@ -4,7 +4,7 @@
 // initialization
 
 void VulkanSwapChain::createSwapChain(GLFWwindow* window) {
-    SwapChainSupportDetails swapChainSupport = device->querySwapChainSupport(device->physicalDevice);
+    SwapChainSupportDetails swapChainSupport = context->querySwapChainSupport(context->physicalDevice);
 
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -18,7 +18,7 @@ void VulkanSwapChain::createSwapChain(GLFWwindow* window) {
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = device->surface;
+    createInfo.surface = context->surface;
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = surfaceFormat.format;
     createInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -26,7 +26,7 @@ void VulkanSwapChain::createSwapChain(GLFWwindow* window) {
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
-    QueueFamilyIndices indices = device->findQueueFamilies(device->physicalDevice);
+    QueueFamilyIndices indices = context->findQueueFamilies(context->physicalDevice);
     uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
     if (indices.graphicsFamily != indices.presentFamily) {
@@ -44,13 +44,13 @@ void VulkanSwapChain::createSwapChain(GLFWwindow* window) {
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(device->vkDevice, &createInfo, nullptr, &vkSwapChain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(context->device, &createInfo, nullptr, &vkSwapChain) != VK_SUCCESS) {
         throw std::runtime_error("failed to create swap chain!");
     }
 
-    vkGetSwapchainImagesKHR(device->vkDevice, vkSwapChain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(context->device, vkSwapChain, &imageCount, nullptr);
     images.resize(imageCount);
-    vkGetSwapchainImagesKHR(device->vkDevice, vkSwapChain, &imageCount, images.data());
+    vkGetSwapchainImagesKHR(context->device, vkSwapChain, &imageCount, images.data());
 
     imageFormat = surfaceFormat.format;
     depthFormat = findDepthFormat();
@@ -61,7 +61,7 @@ void VulkanSwapChain::createImageViews() {
     imageViews.resize(images.size());
 
     for (uint32_t i = 0; i < images.size(); i++) {
-        imageViews[i] = device->createImageView(images[i], imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+        imageViews[i] = context->createImageView(images[i], imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
     }
 }
 
@@ -88,7 +88,7 @@ void VulkanSwapChain::createFramebuffers(VkCommandPool commandPool, VkRenderPass
         framebufferInfo.height = extent.height;
         framebufferInfo.layers = 1;
 
-        if (vkCreateFramebuffer(device->vkDevice, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS) {
+        if (vkCreateFramebuffer(context->device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create framebuffer!");
         }
     }
@@ -96,18 +96,18 @@ void VulkanSwapChain::createFramebuffers(VkCommandPool commandPool, VkRenderPass
 
 void VulkanSwapChain::destroy() {
 
-    depthImage.destroy(device->vkDevice);
-    colorImage.destroy(device->vkDevice);
+    depthImage.destroy(context->device);
+    colorImage.destroy(context->device);
 
     for (size_t i = 0; i < imageViews.size(); i++) {
-        vkDestroyImageView(device->vkDevice, imageViews[i], nullptr);
+        vkDestroyImageView(context->device, imageViews[i], nullptr);
     }
 
     for (size_t i = 0; i < framebuffers.size(); i++) {
-        vkDestroyFramebuffer(device->vkDevice, framebuffers[i], nullptr);
+        vkDestroyFramebuffer(context->device, framebuffers[i], nullptr);
     }
 
-    vkDestroySwapchainKHR(device->vkDevice, vkSwapChain, nullptr);
+    vkDestroySwapchainKHR(context->device, vkSwapChain, nullptr);
 }
 
 
@@ -154,19 +154,19 @@ VkExtent2D VulkanSwapChain::chooseSwapExtent(GLFWwindow* window, const VkSurface
 }
 
 void VulkanSwapChain::createColorResources() {
-    colorImage.allocatedImage = device->createImage(extent.width, extent.height, 1, device->msaaSamples, imageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    colorImage.imageView = device->createImageView(colorImage.allocatedImage.image, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+    colorImage.allocatedImage = context->createImage(extent.width, extent.height, 1, context->msaaSamples, imageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    colorImage.imageView = context->createImageView(colorImage.allocatedImage.image, imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
 void VulkanSwapChain::createDepthResources(VkCommandPool commandPool) {
-    depthImage.allocatedImage = device->createImage(extent.width, extent.height, 1, device->msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    depthImage.imageView = device->createImageView(depthImage.allocatedImage.image, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+    depthImage.allocatedImage = context->createImage(extent.width, extent.height, 1, context->msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    depthImage.imageView = context->createImageView(depthImage.allocatedImage.image, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
-    device->transitionImageLayout(commandPool, depthImage.allocatedImage.image, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
+    context->transitionImageLayout(commandPool, depthImage.allocatedImage.image, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
 }
 
 VkFormat VulkanSwapChain::findDepthFormat() {
-    return device->findSupportedFormat(
+    return context->findSupportedFormat(
         { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
         VK_IMAGE_TILING_OPTIMAL,
         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT

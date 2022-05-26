@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vk_device.h"
+#include "vk_context.h"
 #include "vk_command.h"
 
 #include <glm/glm.hpp>
@@ -21,7 +21,7 @@ struct CameraData {
 class VulkanDescriptor
 {
 public:
-    VulkanDevice* device;
+    VulkanContext* context;
     const int maxObjectsToRender;
 
     VkDescriptorSet globalDescriptorSet;
@@ -30,7 +30,7 @@ public:
     VkDescriptorSet objectsDescriptorSet;
     AllocatedBuffer objectsBuffer;
 
-    VulkanDescriptor(VulkanDevice* device, const int maxObjects) : device(device), maxObjectsToRender(maxObjects) {}
+    VulkanDescriptor(VulkanContext* context, const int maxObjects) : context(context), maxObjectsToRender(maxObjects) {}
 
     void createBuffers();
     void allocateGlobalDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout layout);
