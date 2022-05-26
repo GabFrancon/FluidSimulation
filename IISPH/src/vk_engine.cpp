@@ -8,31 +8,43 @@ void VulkanEngine::init() {
 
     initDevice();
     initSwapChain();
-    initRenderPass();
-    initDrawHandler();
+    createRenderPass();
 
+    createCommandPool();
+    initCommands();
+    createFramebuffers();
+
+    createDescriptorPool();
+    createDescriptorLayouts();
     initDescriptors();
-    loadAssets();
-    initGraphicsPipelines();
+
+    initAssets();
     initScene();
 }
 
 void VulkanEngine::run() {
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-        updateScene();
+        update();
         draw();
     }
-    vkDeviceWaitIdle(vulkanDevice->device);
+    vkDeviceWaitIdle(device->vkDevice);
+}
+
+void VulkanEngine::update() {
+    updateScene();
+
+    mapCameraData();
+    mapObjectsData();
 }
 
 void VulkanEngine::draw() {
-    VkCommandBuffer cmd = vulkanDrawHandler->commandBuffers[currentFrame];
+    VkCommandBuffer cmd = commands[currentFrame].commandBuffer;
 
-    vkWaitForFences(vulkanDevice->device, 1, &vulkanDrawHandler->inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(device->vkDevice, 1, &commands[currentFrame].inFlightFence, VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
-    VkResult result = vkAcquireNextImageKHR(vulkanDevice->device, swapChain->swapChain, UINT64_MAX, vulkanDrawHandler->imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+    VkResult result = vkAcquireNextImageKHR(device->vkDevice, swapChain->vkSwapChain, UINT64_MAX, commands[currentFrame].imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         recreateSwapChain();
@@ -42,7 +54,8 @@ void VulkanEngine::draw() {
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    vkResetFences(vulkanDevice->device, 1, &vulkanDrawHandler->inFlightFences[currentFrame]);
+    vkResetFences(device->vkDevice, 1, &commands[currentFrame].inFlightFence);
+
     vkResetCommandBuffer(cmd, 0);
 
     VkCommandBufferBeginInfo beginInfo{};
@@ -57,7 +70,7 @@ void VulkanEngine::draw() {
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = renderPass;
-    renderPassInfo.framebuffer = vulkanDrawHandler->swapChainFramebuffers[imageIndex];
+    renderPassInfo.framebuffer = swapChain->framebuffers[imageIndex];
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = swapChain->extent;
 
@@ -78,9 +91,10 @@ void VulkanEngine::draw() {
         throw std::runtime_error("failed to record command buffer!");
     }
 
-    VkSemaphore waitSemaphores[] = { vulkanDrawHandler->imageAvailableSemaphores[currentFrame] };
+    VkSemaphore waitSemaphores[] = { commands[currentFrame].imageAvailableSemaphore };
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    VkSemaphore signalSemaphores[] = { vulkanDrawHandler->renderFinishedSemaphores[currentFrame] };
+    VkSemaphore signalSemaphores[] = { commands[currentFrame].renderFinishedSemaphore };
+
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -92,11 +106,11 @@ void VulkanEngine::draw() {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(vulkanDevice->graphicsQueue, 1, &submitInfo, vulkanDrawHandler->inFlightFences[currentFrame]) != VK_SUCCESS) {
+    if (vkQueueSubmit(device->graphicsQueue, 1, &submitInfo, commands[currentFrame].inFlightFence) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
 
-    VkSwapchainKHR swapChains[] = { swapChain->swapChain };
+    VkSwapchainKHR swapChains[] = { swapChain->vkSwapChain };
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -106,7 +120,7 @@ void VulkanEngine::draw() {
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &imageIndex;
 
-    result = vkQueuePresentKHR(vulkanDevice->presentQueue, &presentInfo);
+    result = vkQueuePresentKHR(device->presentQueue, &presentInfo);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
         framebufferResized = false;
@@ -116,32 +130,32 @@ void VulkanEngine::draw() {
         throw std::runtime_error("failed to present swap chain image!");
     }
 
-    currentFrame = (currentFrame + 1) % vulkanDrawHandler->maxFramesOverlap;
+    currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void VulkanEngine::cleanup() {
     cleanupSwapChain();
 
-    for (size_t i = 0; i < vulkanDrawHandler->maxFramesOverlap; i++) {
-        cameraBuffers[i].destroy(vulkanDevice->device);
-        objectsBuffers[i].destroy(vulkanDevice->device);
-    }
+    vkDestroyDescriptorPool(device->vkDevice, descriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(device->vkDevice, globalSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device->vkDevice, objectsSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device->vkDevice, textureSetLayout, nullptr);
 
-    vkDestroyDescriptorPool(vulkanDevice->device, descriptorPool, nullptr);
-    vkDestroyDescriptorSetLayout(vulkanDevice->device, globalSetLayout, nullptr);
-    vkDestroyDescriptorSetLayout(vulkanDevice->device, objectsSetLayout, nullptr);
-    vkDestroyDescriptorSetLayout(vulkanDevice->device, textureSetLayout, nullptr);
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        descriptors[i].destroy();
 
     for (auto& tex: textures)
-        tex.second.destroy(vulkanDevice->device);
+        tex.second.destroy();
 
     for (auto& mesh : meshes)
-        mesh.second.destroy(vulkanDevice->device);
+        mesh.second.destroy();
 
-    vulkanDrawHandler->destroySyncObjects();
-    vulkanDrawHandler->destroyCommands();
+    vkDestroyCommandPool(device->vkDevice, commandPool, nullptr);
 
-    vulkanDevice->destroy();
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        commands[i].destroy();
+
+    device->destroy();
 
     glfwDestroyWindow(window);
 
@@ -150,7 +164,7 @@ void VulkanEngine::cleanup() {
 
 
 
-/*----------------------------------------EDITABLE FUNCTIONS--------------------------------------------*/
+/*----------------------------------------CLASS FUNCTIONS--------------------------------------------*/
 
 // Interface
 void VulkanEngine::initInterface() {
@@ -180,7 +194,7 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
 
     if (key == GLFW_KEY_V && action == GLFW_PRESS) {
         engine->wireframeViewOn = !engine->wireframeViewOn;
-        engine->switchWireframeView();
+        engine->switchViewMode();
     }
     else if (key == GLFW_KEY_T && action == GLFW_PRESS) {
         engine->appTimerStopped = !engine->appTimerStopped;
@@ -207,28 +221,28 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
 
 
 
-// Vulkan
+// Vulkan core
 void VulkanEngine::initDevice() {
-    vulkanDevice = new VulkanDevice();
+    device = new VulkanDevice();
 
-    vulkanDevice->createInstance();
-    vulkanDevice->setupDebugMessenger();
-    vulkanDevice->createSurface(window);
-    vulkanDevice->pickPhysicalDevice();
-    vulkanDevice->createLogicalDevice();
+    device->createInstance();
+    device->setupDebugMessenger();
+    device->createSurface(window);
+    device->pickPhysicalDevice();
+    device->createLogicalDevice();
 }
 
 void VulkanEngine::initSwapChain() {
-    swapChain = new VulkanSwapChain(vulkanDevice);
+    swapChain = new VulkanSwapChain(device);
 
     swapChain->createSwapChain(window);
     swapChain->createImageViews();
 }
 
-void VulkanEngine::initRenderPass() {
+void VulkanEngine::createRenderPass() {
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapChain->imageFormat;
-    colorAttachment.samples = vulkanDevice->msaaSamples;
+    colorAttachment.samples = device->msaaSamples;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -237,8 +251,8 @@ void VulkanEngine::initRenderPass() {
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     VkAttachmentDescription depthAttachment{};
-    depthAttachment.format = vulkanDrawHandler->findDepthFormat(vulkanDevice->physicalDevice);
-    depthAttachment.samples = vulkanDevice->msaaSamples;
+    depthAttachment.format = swapChain->depthFormat;
+    depthAttachment.samples = device->msaaSamples;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -296,29 +310,17 @@ void VulkanEngine::initRenderPass() {
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(vulkanDevice->device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(device->vkDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
     }
 }
 
-void VulkanEngine::initDrawHandler() {
-    vulkanDrawHandler = new VulkanDrawHandler(vulkanDevice);
-
-    vulkanDrawHandler->createCommandPool();
-    vulkanDrawHandler->createCommandBuffers();
-    vulkanDrawHandler->createFramebuffers(swapChain, renderPass);
-    vulkanDrawHandler->createSyncObjects();
-}
-
 void VulkanEngine::cleanupSwapChain() {
-    vulkanDrawHandler->destroyFramebuffers();
 
-    for (auto& material : materials) {
-        vkDestroyPipeline(vulkanDevice->device, material.second.pipeline, nullptr);
-        vkDestroyPipelineLayout(vulkanDevice->device, material.second.pipelineLayout, nullptr);
-    }
+    for (auto& material : materials)
+        material.second.pipeline.destroy();
 
-    vkDestroyRenderPass(vulkanDevice->device, renderPass, nullptr);
+    vkDestroyRenderPass(device->vkDevice, renderPass, nullptr);
 
     swapChain->destroy();
 }
@@ -330,31 +332,56 @@ void VulkanEngine::recreateSwapChain() {
         glfwWaitEvents();
     }
 
-    vkDeviceWaitIdle(vulkanDevice->device);
+    vkDeviceWaitIdle(device->vkDevice);
     cleanupSwapChain();
 
     initSwapChain();
-    initRenderPass();
-    vulkanDrawHandler->createFramebuffers(swapChain, renderPass);
-    initGraphicsPipelines();
+    createRenderPass();
+    createFramebuffers();
+
+    for (auto& material : materials)
+        material.second.updatePipeline({ globalSetLayout, objectsSetLayout, textureSetLayout }, swapChain->extent, renderPass);
+}
+
+
+
+// Commands
+void VulkanEngine::createCommandPool() {
+    QueueFamilyIndices queueFamilyIndices = device->findQueueFamilies(device->physicalDevice);
+
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+    if (vkCreateCommandPool(device->vkDevice, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create command pool!");
+    }
+
+}
+
+void VulkanEngine::initCommands() {
+    commands = std::vector(MAX_FRAMES_IN_FLIGHT, VulkanCommand{ device });
+
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        commands[i].createCommandBuffer(commandPool);
+        commands[i].createSyncStructures();
+    }
+}
+
+void VulkanEngine::createFramebuffers() {
+    swapChain->createFramebuffers(commandPool, renderPass);
 }
 
 
 
 // Descriptors
-void VulkanEngine::initDescriptors() {
-    createDescriptorPool();
-    createDescriptorLayouts();
-    createDescriptorBuffers();
-    createDescriptorSets();
-}
-
 void VulkanEngine::createDescriptorPool() {
 
     std::vector<VkDescriptorPoolSize> poolSizes = {
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * static_cast<uint32_t>(vulkanDrawHandler->maxFramesOverlap) }, //  nb of UBO * MAX_FRAMES_IN_FLIGHT
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * static_cast<uint32_t>(vulkanDrawHandler->maxFramesOverlap) }, //  nb of SSBO * MAX_FRAMES_IN_FLIGHT
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2 } // materials.size();
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) },     // nb of UBO  * MAX_FRAMES_IN_FLIGHT
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) },     // nb of SSBO * MAX_FRAMES_IN_FLIGHT
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(MAX_MATERIALS_CREATED) } // MAX_MATERIALS_CREATED
     };
 
     VkDescriptorPoolCreateInfo poolInfo{};
@@ -363,7 +390,7 @@ void VulkanEngine::createDescriptorPool() {
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = 10;
 
-    if (vkCreateDescriptorPool(vulkanDevice->device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(device->vkDevice, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor pool!");
     }
 }
@@ -381,7 +408,7 @@ void VulkanEngine::createDescriptorLayouts() {
     globalLayoutInfo.bindingCount = 1;
     globalLayoutInfo.pBindings = &cameraLayoutBinding;
 
-    if (vkCreateDescriptorSetLayout(vulkanDevice->device, &globalLayoutInfo, nullptr, &globalSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(device->vkDevice, &globalLayoutInfo, nullptr, &globalSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
 
@@ -397,7 +424,7 @@ void VulkanEngine::createDescriptorLayouts() {
     objectsLayoutInfo.bindingCount = 1;
     objectsLayoutInfo.pBindings = &objectsLayoutBinding;
 
-    if (vkCreateDescriptorSetLayout(vulkanDevice->device, &objectsLayoutInfo, nullptr, &objectsSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(device->vkDevice, &objectsLayoutInfo, nullptr, &objectsSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
 
@@ -414,86 +441,19 @@ void VulkanEngine::createDescriptorLayouts() {
     textureLayoutInfo.bindingCount = 1;
     textureLayoutInfo.pBindings = &textureLayoutBinding;
 
-    if (vkCreateDescriptorSetLayout(vulkanDevice->device, &textureLayoutInfo, nullptr, &textureSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(device->vkDevice, &textureLayoutInfo, nullptr, &textureSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
 }
 
-void VulkanEngine::createDescriptorBuffers() {
+void VulkanEngine::initDescriptors() {
+    descriptors = std::vector(MAX_FRAMES_IN_FLIGHT, VulkanDescriptor(device, MAX_OBJECTS_RENDERED));
 
-    // create camera buffers
-    VkDeviceSize cameraBufferSize = sizeof(CameraData);
-    cameraBuffers.resize(vulkanDrawHandler->maxFramesOverlap);
-
-    for (size_t i = 0; i < vulkanDrawHandler->maxFramesOverlap; i++) {
-        cameraBuffers[i] = vulkanDevice->createBuffer(cameraBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    }
-
-    // create object buffers
-    VkDeviceSize objectBufferSize = sizeof(ObjectData);
-    objectsBuffers.resize(vulkanDrawHandler->maxFramesOverlap);
-
-    for (size_t i = 0; i < vulkanDrawHandler->maxFramesOverlap; i++) {
-        objectsBuffers[i] = vulkanDevice->createBuffer(objectBufferSize * MAX_OBJECTS_RENDERED, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    }
-}
-
-void VulkanEngine::createDescriptorSets() {
-    // global descriptor set
-    std::vector<VkDescriptorSetLayout> globalLayouts(vulkanDrawHandler->maxFramesOverlap, globalSetLayout);
-    VkDescriptorSetAllocateInfo globalAllocInfo{};
-    globalAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    globalAllocInfo.descriptorPool = descriptorPool;
-    globalAllocInfo.descriptorSetCount = static_cast<uint32_t>(vulkanDrawHandler->maxFramesOverlap);
-    globalAllocInfo.pSetLayouts = globalLayouts.data();
-
-    globalDescriptors.resize(vulkanDrawHandler->maxFramesOverlap);
-    if (vkAllocateDescriptorSets(vulkanDevice->device, &globalAllocInfo, globalDescriptors.data()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
-    // objects descriptor set
-    std::vector<VkDescriptorSetLayout> objectsLayouts(vulkanDrawHandler->maxFramesOverlap, objectsSetLayout);
-    VkDescriptorSetAllocateInfo objectsAllocInfo{};
-    objectsAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    objectsAllocInfo.descriptorPool = descriptorPool;
-    objectsAllocInfo.descriptorSetCount = static_cast<uint32_t>(vulkanDrawHandler->maxFramesOverlap);
-    objectsAllocInfo.pSetLayouts = objectsLayouts.data();
-
-    objectsDescriptors.resize(vulkanDrawHandler->maxFramesOverlap);
-    if (vkAllocateDescriptorSets(vulkanDevice->device, &objectsAllocInfo, objectsDescriptors.data()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
-
-    for (size_t i = 0; i < vulkanDrawHandler->maxFramesOverlap; i++) {
-        VkDescriptorBufferInfo cameraBufferInfo{};
-        cameraBufferInfo.buffer = cameraBuffers[i].buffer;
-        cameraBufferInfo.offset = 0;
-        cameraBufferInfo.range = sizeof(CameraData);
-
-        VkDescriptorBufferInfo objectsBufferInfo{};
-        objectsBufferInfo.buffer = objectsBuffers[i].buffer;
-        objectsBufferInfo.offset = 0;
-        objectsBufferInfo.range = sizeof(ObjectData) * MAX_OBJECTS_RENDERED;
-
-        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = globalDescriptors[i];
-        descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &cameraBufferInfo;
-
-        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = objectsDescriptors[i];
-        descriptorWrites[1].dstBinding = 0;
-        descriptorWrites[1].dstArrayElement = 0;
-        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pBufferInfo = &objectsBufferInfo;
-
-        vkUpdateDescriptorSets(vulkanDevice->device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        descriptors[i].createBuffers();
+        descriptors[i].allocateGlobalDescriptorSet(descriptorPool, globalSetLayout);
+        descriptors[i].allocateObjectsDescriptorSet(descriptorPool, objectsSetLayout);
+        descriptors[i].updateDescriptors();
     }
 }
 
@@ -503,14 +463,14 @@ void VulkanEngine::mapCameraData() {
     cameraData.proj = camera.projMatrix;
 
     void* data;
-    vkMapMemory(vulkanDevice->device, cameraBuffers[currentFrame].allocation, 0, sizeof(CameraData), 0, &data);
+    vkMapMemory(device->vkDevice, descriptors[currentFrame].cameraBuffer.allocation, 0, sizeof(CameraData), 0, &data);
     memcpy(data, &cameraData, sizeof(CameraData));
-    vkUnmapMemory(vulkanDevice->device, cameraBuffers[currentFrame].allocation);
+    vkUnmapMemory(device->vkDevice, descriptors[currentFrame].cameraBuffer.allocation);
 }
 
 void VulkanEngine::mapObjectsData() {
     void* data;
-    vkMapMemory(vulkanDevice->device, objectsBuffers[currentFrame].allocation, 0, sizeof(ObjectData), 0, &data);
+    vkMapMemory(device->vkDevice, descriptors[currentFrame].objectsBuffer.allocation, 0, sizeof(ObjectData), 0, &data);
     ObjectData* objectsData = (ObjectData*)data;
 
     for (int i = 0; i < renderables.size(); i++) {
@@ -519,99 +479,50 @@ void VulkanEngine::mapObjectsData() {
         objectsData[i].albedo = object.albedoColor;
     }
 
-    vkUnmapMemory(vulkanDevice->device, objectsBuffers[currentFrame].allocation);
+    vkUnmapMemory(device->vkDevice, descriptors[currentFrame].objectsBuffer.allocation);
 }
 
 
 
 // Assets
-void VulkanEngine::loadAssets() {
+void VulkanEngine::initAssets() {
     loadTextures();
-    createMaterial(*getTexture("water"), "water");
-    createMaterial(*getTexture("water"), "wireframe");
+    createMaterial("water"    , getTexture("water"), VulkanPipeline{ device, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL });
+    createMaterial("wireframe", getTexture("water"), VulkanPipeline{ device, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE });
 
     loadMeshes();
-    uploadMesh(*getMesh("sphere"));
+    getMesh("sphere")->upload(commandPool);
 }
 
 void VulkanEngine::loadTextures() {
-    Texture waterTex{};
-    waterTex.loadFromFile(vulkanDevice, vulkanDrawHandler->commandPool, WATER_TEXTURE_PATH.c_str());
+    Texture waterTex{ device };
+    waterTex.loadFromFile(commandPool, WATER_TEXTURE_PATH.c_str());
     textures["water"] = waterTex;
 }
 
 void VulkanEngine::loadMeshes() {
-    Mesh sphereMesh;
+    Mesh sphereMesh{ device };
     sphereMesh.loadFromObj(SPHERE_MODEL_PATH.c_str());
     meshes["sphere"] = sphereMesh;
 }
 
-void VulkanEngine::createMaterial(Texture texture, const std::string name) {
-    Material material{};
-    setMaterialTexture(texture, material);
+void VulkanEngine::createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline) {    
+    Material material{ device, pipeline, texture };
+    material.updatePipeline({ globalSetLayout, objectsSetLayout, textureSetLayout }, swapChain->extent, renderPass);
+    material.updateTexture(textureSetLayout, descriptorPool);
     materials[name] = material;
 }
 
-void VulkanEngine::setMaterialTexture(Texture texture, Material& material) {
-    VkDescriptorSetAllocateInfo textureAllocInfo{};
-    textureAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    textureAllocInfo.descriptorPool = descriptorPool;
-    textureAllocInfo.descriptorSetCount = 1;
-    textureAllocInfo.pSetLayouts = &textureSetLayout;
+void VulkanEngine::switchViewMode() {
+    Material* material;
 
-    if (vkAllocateDescriptorSets(vulkanDevice->device, &textureAllocInfo, &material.textureDescriptor) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
+    if (wireframeViewOn)
+        material = getMaterial("wireframe");
+    else
+        material = getMaterial("water");
 
-    VkDescriptorImageInfo textureImageInfo{};
-    textureImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    textureImageInfo.imageView = texture.albedoMap.imageView;
-    textureImageInfo.sampler = texture.sampler;
-
-    VkWriteDescriptorSet descriptorWrite{};
-    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = material.textureDescriptor;
-    descriptorWrite.dstBinding = 0;
-    descriptorWrite.dstArrayElement = 0;
-    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptorWrite.descriptorCount = 1;
-    descriptorWrite.pImageInfo = &textureImageInfo;
-
-    vkUpdateDescriptorSets(vulkanDevice->device, 1, &descriptorWrite, 0, nullptr);
-}
-
-void VulkanEngine::uploadMesh(Mesh& mesh) {
-    // Vertex buffer
-    VkDeviceSize vertexBufferSize = sizeof(mesh.vertices[0]) * mesh.vertices.size();
-
-    AllocatedBuffer vertexStagingBuffer{};
-    vertexStagingBuffer = vulkanDevice->createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    void* vertexData;
-    vkMapMemory(vulkanDevice->device, vertexStagingBuffer.allocation, 0, vertexBufferSize, 0, &vertexData);
-    memcpy(vertexData, mesh.vertices.data(), (size_t)vertexBufferSize);
-    vkUnmapMemory(vulkanDevice->device, vertexStagingBuffer.allocation);
-
-    mesh.vertexBuffer = vulkanDevice->createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    vulkanDevice->copyBuffer(vulkanDrawHandler->commandPool, vertexStagingBuffer.buffer, mesh.vertexBuffer.buffer, vertexBufferSize);
-
-    vertexStagingBuffer.destroy(vulkanDevice->device);
-
-    // Index buffer
-    VkDeviceSize indexBufferSize = sizeof(mesh.indices[0]) * mesh.indices.size();
-
-    AllocatedBuffer indexStagingBuffer{};
-    indexStagingBuffer = vulkanDevice->createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    void* indexData{};
-    vkMapMemory(vulkanDevice->device, indexStagingBuffer.allocation, 0, indexBufferSize, 0, &indexData);
-    memcpy(indexData, mesh.indices.data(), (size_t)indexBufferSize);
-    vkUnmapMemory(vulkanDevice->device, indexStagingBuffer.allocation);
-
-    mesh.indexBuffer = vulkanDevice->createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    vulkanDevice->copyBuffer(vulkanDrawHandler->commandPool, indexStagingBuffer.buffer, mesh.indexBuffer.buffer, indexBufferSize);
-
-    indexStagingBuffer.destroy(vulkanDevice->device);
+    for (RenderObject& object : renderables)
+        object.material = material;
 }
 
 Texture* VulkanEngine::getTexture(const std::string& name)
@@ -645,136 +556,21 @@ Material* VulkanEngine::getMaterial(const std::string& name) {
 
 
 
-// Graphics pipelines
-void VulkanEngine::initGraphicsPipelines() {
-    Material* waterMaterial = getMaterial("water");
-    waterMaterial->pipelineLayout = createPipelineLayout();
-    waterMaterial->pipeline = createPipeline(waterMaterial->pipelineLayout, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL);
-
-    Material* wireframeMaterial = getMaterial("wireframe");
-    wireframeMaterial->pipelineLayout = createPipelineLayout();
-    wireframeMaterial->pipeline = createPipeline(wireframeMaterial->pipelineLayout, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE);
-}
-
-VkPipelineLayout VulkanEngine::createPipelineLayout() {
-    std::array<VkDescriptorSetLayout, 3> layouts = { globalSetLayout, objectsSetLayout, textureSetLayout };
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = layouts.size();
-    pipelineLayoutInfo.pSetLayouts = layouts.data();
-
-    VkPipelineLayout pipelineLayout;
-    if (vkCreatePipelineLayout(vulkanDevice->device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create pipeline layout!");
-    }
-
-    return pipelineLayout;
-}
-
-VkPipeline VulkanEngine::createPipeline(VkPipelineLayout pipelineLayout, const std::string& vertexShaderPath, const std::string& fragmentShaderPath, VkPolygonMode polygonMode) {
-
-    //  build pipeline
-    PipelineBuilder builder{};
-    builder.pipelineLayout = pipelineLayout;
-
-    // vertex input info
-    auto vertexDescription = Vertex::getVertexDescription();
-    builder.vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    builder.vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(vertexDescription.bindings.size());
-    builder.vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexDescription.attributes.size());
-    builder.vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-    builder.vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-
-    // input assembly
-    builder.inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    builder.inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    builder.inputAssembly.primitiveRestartEnable = VK_FALSE;
-
-    // viewport state
-    VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = (float)swapChain->extent.width;
-    viewport.height = (float)swapChain->extent.height;
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-
-    VkRect2D scissor{};
-    scissor.offset = { 0, 0 };
-    scissor.extent = swapChain->extent;
-
-    builder.viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    builder.viewportState.viewportCount = 1;
-    builder.viewportState.pViewports = &viewport;
-    builder.viewportState.scissorCount = 1;
-    builder.viewportState.pScissors = &scissor;
-
-    // rasterizer
-    builder.rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    builder.rasterizer.depthClampEnable = VK_FALSE;
-    builder.rasterizer.rasterizerDiscardEnable = VK_FALSE;
-    builder.rasterizer.polygonMode = polygonMode;
-    builder.rasterizer.lineWidth = 1.0f;
-    builder.rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-    builder.rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    builder.rasterizer.depthBiasEnable = VK_FALSE;
-
-    // multisampling
-    builder.multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    builder.multisampling.sampleShadingEnable = VK_TRUE; // enable sample shading in the pipeline
-    builder.multisampling.rasterizationSamples = vulkanDevice->msaaSamples;
-    builder.multisampling.minSampleShading = .2f; // closer to one is smoother
-
-    // color blending
-    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_FALSE;
-
-    builder.colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    builder.colorBlending.logicOpEnable = VK_FALSE;
-    builder.colorBlending.logicOp = VK_LOGIC_OP_COPY;
-    builder.colorBlending.attachmentCount = 1;
-    builder.colorBlending.pAttachments = &colorBlendAttachment;
-    builder.colorBlending.blendConstants[0] = 0.0f;
-    builder.colorBlending.blendConstants[1] = 0.0f;
-    builder.colorBlending.blendConstants[2] = 0.0f;
-    builder.colorBlending.blendConstants[3] = 0.0f;
-
-    // depth stencil
-    builder.depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    builder.depthStencil.depthTestEnable = VK_TRUE;
-    builder.depthStencil.depthWriteEnable = VK_TRUE;
-    builder.depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-    builder.depthStencil.depthBoundsTestEnable = VK_FALSE;
-    builder.depthStencil.stencilTestEnable = VK_FALSE;
-
-    VkPipeline pipeline = builder.buildPipeline(vulkanDevice->device, renderPass, vertexShaderPath, fragmentShaderPath);
-    return pipeline;
-}
-
-void VulkanEngine::switchWireframeView() {
-    Material* material;
-
-    if (wireframeViewOn)
-        material = getMaterial("wireframe");
-    else
-        material = getMaterial("water");
-
-    for (RenderObject& object : renderables)
-        object.material = material;
-}
-
-
-
 // Scene
 void VulkanEngine::initScene() {
-    // init logic
+    // init SPH logic
     solver = WCSPHSolver();
     solver.init(48, 32, 16, 16);
 
     // init camera
-    camera.viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    camera.projMatrix = Camera::ortho(0.0f, (float)swapChain->extent.width / 30, 0.0f, (float)swapChain->extent.height / 30, 0.1f, 100.0f);
+    glm::vec3 eye = glm::vec3(0.0f, 0.0f, 10.0f);
+    glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    float near = 0.1f;
+    float far = 100.0f;
+
+    camera.viewMatrix = glm::lookAt(eye, center, up);
+    camera.projMatrix = Camera::ortho(0.0f, solver.resX(), 0.0f, solver.resY(), near, far);
 
     // create particles
     for (int i = 0 ; i < solver.particleCount() ; i++) {
@@ -802,7 +598,8 @@ void VulkanEngine::updateScene() {
         appTimer += dt;
 
         //compute SPH logic
-        for (int i = 0; i < 10; ++i) solver.update();
+        for (int i = 0; i < 10; ++i)
+            solver.update();
 
         // update particles
         for (int i = 0; i < solver.particleCount(); i++) {
@@ -817,15 +614,17 @@ void VulkanEngine::updateScene() {
     }
 
     // update camera
-    camera.viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    camera.projMatrix = Camera::ortho(0.0f, (float)swapChain->extent.width / 30, 0.0f, (float)swapChain->extent.height / 30, 0.1f, 100.0f);
-    //camera.projMatrix = Camera::perspective(glm::radians(45.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
+    glm::vec3 eye = glm::vec3(0.0f, 0.0f, 10.0f);
+    glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    float near = 0.1f;
+    float far = 100.0f;
+
+    camera.viewMatrix = glm::lookAt(eye, center, up);
+    camera.projMatrix = Camera::ortho(0.0f, solver.resX(), 0.0f, solver.resY(), near, far);
 }
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
-    mapCameraData();
-    mapObjectsData();
-
     //drawObjects(commandBuffer, renderables.data(), renderables.size());
     drawInstanced(commandBuffer, renderables[0], renderables.size());
 
@@ -839,13 +638,14 @@ void VulkanEngine::drawObjects(VkCommandBuffer commandBuffer, RenderObject* firs
         RenderObject& object = firstObject[i];
 
         // bind shader pipeline
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.vkPipeline);
 
         // bind global uniform resources
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &globalDescriptors[currentFrame], 0, nullptr);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &objectsDescriptors[currentFrame], 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 0, 1, &descriptors[currentFrame].globalDescriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 1, 1, &descriptors[currentFrame].objectsDescriptorSet, 0, nullptr);
+        
         // bind object resources
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureDescriptor, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 2, 1, &object.material->textureDescriptor, 0, nullptr);
 
         // bind vertices
         VkDeviceSize offset = 0;
@@ -859,13 +659,14 @@ void VulkanEngine::drawObjects(VkCommandBuffer commandBuffer, RenderObject* firs
 
 void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount) {
     // bind shader pipeline
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.vkPipeline);
 
-    // bind global uniform resources
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &globalDescriptors[currentFrame], 0, nullptr);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &objectsDescriptors[currentFrame], 0, nullptr);
-    // bind object resources
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureDescriptor, 0, nullptr);
+    // bind frame descriptors
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 0, 1, &descriptors[currentFrame].globalDescriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 1, 1, &descriptors[currentFrame].objectsDescriptorSet, 0, nullptr);
+    
+    // bind texture descriptor
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 2, 1, &object.material->textureDescriptor, 0, nullptr);
 
     // bind vertices
     VkDeviceSize offset = 0;
@@ -873,7 +674,8 @@ void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, RenderObject obj
     vkCmdBindIndexBuffer(commandBuffer, object.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
     // draw object
-    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object.mesh->indices.size()), instanceCount, 0, 0, 0);
+    uint32_t indexCount = static_cast<uint32_t>(object.mesh->indices.size());
+    vkCmdDrawIndexed(commandBuffer, indexCount, instanceCount, 0, 0, 0);
 }
 
 
@@ -907,13 +709,13 @@ void VulkanEngine::saveScreenshot(const char* filename) {
     VkFormatProperties formatProps;
 
     // Check if the device supports blitting from optimal images (the swapchain images are in optimal format)
-    vkGetPhysicalDeviceFormatProperties(vulkanDevice->physicalDevice, swapChain->imageFormat, &formatProps);
+    vkGetPhysicalDeviceFormatProperties(device->physicalDevice, swapChain->imageFormat, &formatProps);
     if (!(formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_SRC_BIT)) {
         supportsBlit = false;
     }
 
     // Check if the device supports blitting to linear images
-    vkGetPhysicalDeviceFormatProperties(vulkanDevice->physicalDevice, VK_FORMAT_R8G8B8A8_UNORM, &formatProps);
+    vkGetPhysicalDeviceFormatProperties(device->physicalDevice, VK_FORMAT_R8G8B8A8_UNORM, &formatProps);
     if (!(formatProps.linearTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT)) {
         supportsBlit = false;
     }
@@ -937,22 +739,22 @@ void VulkanEngine::saveScreenshot(const char* filename) {
     imageCreateCI.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     // Create the image
     VkImage dstImage;
-    if (vkCreateImage(vulkanDevice->device, &imageCreateCI, nullptr, &dstImage) != VK_SUCCESS) {
+    if (vkCreateImage(device->vkDevice, &imageCreateCI, nullptr, &dstImage) != VK_SUCCESS) {
         throw std::runtime_error("failed to create screenshot image!");
     }
     // Create memory to back up the image
     VkMemoryRequirements memRequirements;
     VkMemoryAllocateInfo memAllocInfo(tools::memoryAllocateInfo());
     VkDeviceMemory dstImageMemory;
-    vkGetImageMemoryRequirements(vulkanDevice->device, dstImage, &memRequirements);
+    vkGetImageMemoryRequirements(device->vkDevice, dstImage, &memRequirements);
     memAllocInfo.allocationSize = memRequirements.size;
     // Memory must be host visible to copy from
-    memAllocInfo.memoryTypeIndex = vulkanDevice->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    vkAllocateMemory(vulkanDevice->device, &memAllocInfo, nullptr, &dstImageMemory);
-    vkBindImageMemory(vulkanDevice->device, dstImage, dstImageMemory, 0);
+    memAllocInfo.memoryTypeIndex = device->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    vkAllocateMemory(device->vkDevice, &memAllocInfo, nullptr, &dstImageMemory);
+    vkBindImageMemory(device->vkDevice, dstImage, dstImageMemory, 0);
 
     // Do the actual blit from the swapchain image to our host visible destination image
-    VkCommandBuffer copyCmd = vulkanDevice->beginSingleTimeCommands(vulkanDrawHandler->commandPool);
+    VkCommandBuffer copyCmd = device->beginSingleTimeCommands(commandPool);
 
     // Transition destination image to transfer destination layout
     VkImageMemoryBarrier imageMemoryBarrier = tools::imageMemoryBarrier();
@@ -1072,16 +874,16 @@ void VulkanEngine::saveScreenshot(const char* filename) {
         0, nullptr,
         1, &imageMemoryBarrier3);
 
-    vulkanDevice->endSingleTimeCommands(vulkanDrawHandler->commandPool, copyCmd);
+    device->endSingleTimeCommands(commandPool, copyCmd);
 
     // Get layout of the image (including row pitch)
     VkImageSubresource subResource{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 0 };
     VkSubresourceLayout subResourceLayout;
-    vkGetImageSubresourceLayout(vulkanDevice->device, dstImage, &subResource, &subResourceLayout);
+    vkGetImageSubresourceLayout(device->vkDevice, dstImage, &subResource, &subResourceLayout);
 
     // Map image memory so we can start copying from it
     const char* data;
-    vkMapMemory(vulkanDevice->device, dstImageMemory, 0, VK_WHOLE_SIZE, 0, (void**)&data);
+    vkMapMemory(device->vkDevice, dstImageMemory, 0, VK_WHOLE_SIZE, 0, (void**)&data);
     data += subResourceLayout.offset;
 
     std::ofstream file(filename, std::ios::out | std::ios::binary);
@@ -1124,7 +926,7 @@ void VulkanEngine::saveScreenshot(const char* filename) {
     std::cout << "Screenshot saved to disk" << std::endl;
 
     // Clean up resources
-    vkUnmapMemory(vulkanDevice->device, dstImageMemory);
-    vkFreeMemory(vulkanDevice->device, dstImageMemory, nullptr);
-    vkDestroyImage(vulkanDevice->device, dstImage, nullptr);
+    vkUnmapMemory(device->vkDevice, dstImageMemory);
+    vkFreeMemory(device->vkDevice, dstImageMemory, nullptr);
+    vkDestroyImage(device->vkDevice, dstImage, nullptr);
 }

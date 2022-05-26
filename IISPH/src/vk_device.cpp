@@ -146,16 +146,16 @@ void VulkanDevice::createLogicalDevice() {
         createInfo.enabledLayerCount = 0;
     }
 
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &vkDevice) != VK_SUCCESS) {
         throw std::runtime_error("failed to create logical device!");
     }
 
-    vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
-    vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+    vkGetDeviceQueue(vkDevice, indices.graphicsFamily.value(), 0, &graphicsQueue);
+    vkGetDeviceQueue(vkDevice, indices.presentFamily.value(), 0, &presentQueue);
 }
 
 void VulkanDevice::destroy() {
-    vkDestroyDevice(device, nullptr);
+    vkDestroyDevice(vkDevice, nullptr);
 
     if (enableValidationLayers) {
         DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
@@ -166,7 +166,7 @@ void VulkanDevice::destroy() {
 }
 
 
-// general
+// commands
 
 VkCommandBuffer VulkanDevice::beginSingleTimeCommands(VkCommandPool commandPool) {
     VkCommandBufferAllocateInfo allocInfo{};
@@ -176,7 +176,7 @@ VkCommandBuffer VulkanDevice::beginSingleTimeCommands(VkCommandPool commandPool)
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+    vkAllocateCommandBuffers(vkDevice, &allocInfo, &commandBuffer);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -198,8 +198,11 @@ void VulkanDevice::endSingleTimeCommands(VkCommandPool commandPool, VkCommandBuf
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(graphicsQueue);
 
-    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+    vkFreeCommandBuffers(vkDevice, commandPool, 1, &commandBuffer);
 }
+
+
+// device properties
 
 uint32_t VulkanDevice::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memProperties;
@@ -269,8 +272,25 @@ SwapChainSupportDetails VulkanDevice::querySwapChainSupport(VkPhysicalDevice dev
     return details;
 }
 
+VkFormat VulkanDevice::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
 
-// buffer
+    for (VkFormat format : candidates) {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+            return format;
+        }
+        else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+            return format;
+        }
+    }
+
+    throw std::runtime_error("failed to find supported format!");
+}
+
+
+// buffers
 
 AllocatedBuffer VulkanDevice::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
     AllocatedBuffer allocatedBuffer{};
@@ -281,23 +301,23 @@ AllocatedBuffer VulkanDevice::createBuffer(VkDeviceSize size, VkBufferUsageFlags
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(device, &bufferInfo, nullptr, &allocatedBuffer.buffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(vkDevice, &bufferInfo, nullptr, &allocatedBuffer.buffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to create buffer!");
     }
 
     VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(device, allocatedBuffer.buffer, &memRequirements);
+    vkGetBufferMemoryRequirements(vkDevice, allocatedBuffer.buffer, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &allocatedBuffer.allocation) != VK_SUCCESS) {
+    if (vkAllocateMemory(vkDevice, &allocInfo, nullptr, &allocatedBuffer.allocation) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate buffer memory!");
     }
 
-    vkBindBufferMemory(device, allocatedBuffer.buffer, allocatedBuffer.allocation, 0);
+    vkBindBufferMemory(vkDevice, allocatedBuffer.buffer, allocatedBuffer.allocation, 0);
 
     return allocatedBuffer;
 }
@@ -313,7 +333,7 @@ void VulkanDevice::copyBuffer(VkCommandPool commandPool, VkBuffer srcBuffer, VkB
 }
 
 
-// image
+// images
 
 AllocatedImage VulkanDevice::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties) {
     AllocatedImage allocatedImage{};
@@ -333,23 +353,23 @@ AllocatedImage VulkanDevice::createImage(uint32_t width, uint32_t height, uint32
     imageInfo.samples = numSamples;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateImage(device, &imageInfo, nullptr, &allocatedImage.image) != VK_SUCCESS) {
+    if (vkCreateImage(vkDevice, &imageInfo, nullptr, &allocatedImage.image) != VK_SUCCESS) {
         throw std::runtime_error("failed to create image!");
     }
 
     VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(device, allocatedImage.image, &memRequirements);
+    vkGetImageMemoryRequirements(vkDevice, allocatedImage.image, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &allocatedImage.allocation) != VK_SUCCESS) {
+    if (vkAllocateMemory(vkDevice, &allocInfo, nullptr, &allocatedImage.allocation) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate image memory!");
     }
 
-    vkBindImageMemory(device, allocatedImage.image, allocatedImage.allocation, 0);
+    vkBindImageMemory(vkDevice, allocatedImage.image, allocatedImage.allocation, 0);
 
     return allocatedImage;
 }
@@ -368,7 +388,7 @@ VkImageView VulkanDevice::createImageView(VkImage image, VkFormat format, VkImag
     viewInfo.subresourceRange.aspectMask = aspectFlags;
 
     VkImageView imageView;
-    if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+    if (vkCreateImageView(vkDevice, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture image view!");
     }
 

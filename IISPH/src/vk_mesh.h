@@ -61,13 +61,19 @@ namespace std {
 
 class Mesh {
 public:
+    VulkanDevice* device;
+
     std::vector<Vertex> vertices;
     AllocatedBuffer vertexBuffer;
 
     std::vector<uint32_t> indices;
     AllocatedBuffer indexBuffer;
 
+    Mesh(){}
+    Mesh(VulkanDevice* device) : device(device) { }
+
     void loadFromObj(const char* filepath);
-    void destroy(VkDevice device);
+    void upload(VkCommandPool commandPool);
+    void destroy();
 };
 

@@ -5,6 +5,8 @@
 
 class Texture {
 public:
+	VulkanDevice* device;
+
 	int texWidth;
 	int texHeight;
 	int texChannels;
@@ -13,9 +15,12 @@ public:
 	VkSampler sampler;
 	uint32_t  mipLevels;
 
-	void loadFromFile(VulkanDevice* vulkanDevice, VkCommandPool commandPool, const char* filepath);
-	void setTextureSampler(VulkanDevice* vulkanDevice, VkFilter filter, VkSamplerAddressMode addressMode);
-	void generateMipmaps(VulkanDevice* vulkanDevice, VkCommandPool commandPool, VkFormat imageFormat);
-	void destroy(VkDevice device);
+	Texture() {}
+	Texture(VulkanDevice* device) : device(device) {}
+
+	void loadFromFile(VkCommandPool commandPool, const char* filepath);
+	void setTextureSampler(VkFilter filter, VkSamplerAddressMode addressMode);
+	void generateMipmaps(VkCommandPool commandPool, VkFormat imageFormat);
+	void destroy();
 };
 

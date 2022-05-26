@@ -90,7 +90,7 @@ public:
     VkDebugUtilsMessengerEXT debugMessenger;                    // Vulkan debug output handle
     VkSurfaceKHR surface;                                       // Vulkan window surface
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;           // GPU chosen as default device
-    VkDevice device;                                            // Vulkan device for commands
+    VkDevice vkDevice;                                          // Vulkan device for commands
     VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;  // Multisampling count
     VkQueue graphicsQueue;                                      // GPU's port we submit graphics commands into
     VkQueue presentQueue;                                       // GPU's port we submit presentation commands into
@@ -105,18 +105,21 @@ public:
     void createLogicalDevice();
     void destroy();
 
-    // general
+    // commands
     VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool);
     void endSingleTimeCommands(VkCommandPool commandPool, VkCommandBuffer commandBuffer);
+
+    // device properties
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+    VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
-    // buffer
+    // buffers
     AllocatedBuffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
     void copyBuffer(VkCommandPool commandPool, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
-    // image
+    // images
     AllocatedImage createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
     void copyBufferToImage(VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
