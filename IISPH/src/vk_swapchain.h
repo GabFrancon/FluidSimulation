@@ -21,6 +21,7 @@ public:
 
 
     // initialization
+    VulkanSwapChain(){}
     VulkanSwapChain(VulkanContext* context) : context(context) {}
     void createSwapChain(GLFWwindow* window);
     void createImageViews();

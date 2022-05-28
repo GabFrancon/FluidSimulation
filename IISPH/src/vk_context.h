@@ -98,6 +98,8 @@ public:
 
 
     // initialization
+    VulkanContext() {}
+
     void createInstance();
     void setupDebugMessenger();
     void createSurface(GLFWwindow* window);

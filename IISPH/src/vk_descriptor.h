@@ -22,7 +22,7 @@ class VulkanDescriptor
 {
 public:
     VulkanContext* context;
-    const int maxObjectsToRender;
+    const int maxObjectsToRender = 1000;
 
     VkDescriptorSet globalDescriptorSet;
     AllocatedBuffer cameraBuffer;
@@ -30,6 +30,7 @@ public:
     VkDescriptorSet objectsDescriptorSet;
     AllocatedBuffer objectsBuffer;
 
+    VulkanDescriptor() {}
     VulkanDescriptor(VulkanContext* context, const int maxObjects) : context(context), maxObjectsToRender(maxObjects) {}
 
     void createBuffers();

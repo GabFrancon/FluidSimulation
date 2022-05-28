@@ -14,6 +14,7 @@ public:
 
 
     // initialization
+    VulkanCommand() {}
     VulkanCommand(VulkanContext* context) : context(context) {}
     void createCommandBuffer(VkCommandPool commandPool);
     void createSyncStructures();

@@ -28,7 +28,7 @@ void VulkanEngine::run() {
         update();
         draw();
     }
-    vkDeviceWaitIdle(context->device);
+    vkDeviceWaitIdle(context.device);
 }
 
 void VulkanEngine::update() {
@@ -41,10 +41,10 @@ void VulkanEngine::update() {
 void VulkanEngine::draw() {
     VkCommandBuffer cmd = commands[currentFrame].commandBuffer;
 
-    vkWaitForFences(context->device, 1, &commands[currentFrame].inFlightFence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(context.device, 1, &commands[currentFrame].inFlightFence, VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
-    VkResult result = vkAcquireNextImageKHR(context->device, swapChain->vkSwapChain, UINT64_MAX, commands[currentFrame].imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    VkResult result = vkAcquireNextImageKHR(context.device, swapChain.vkSwapChain, UINT64_MAX, commands[currentFrame].imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         recreateSwapChain();
@@ -54,7 +54,7 @@ void VulkanEngine::draw() {
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    vkResetFences(context->device, 1, &commands[currentFrame].inFlightFence);
+    vkResetFences(context.device, 1, &commands[currentFrame].inFlightFence);
 
     vkResetCommandBuffer(cmd, 0);
 
@@ -70,9 +70,9 @@ void VulkanEngine::draw() {
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = renderPass;
-    renderPassInfo.framebuffer = swapChain->framebuffers[imageIndex];
+    renderPassInfo.framebuffer = swapChain.framebuffers[imageIndex];
     renderPassInfo.renderArea.offset = { 0, 0 };
-    renderPassInfo.renderArea.extent = swapChain->extent;
+    renderPassInfo.renderArea.extent = swapChain.extent;
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
@@ -106,11 +106,11 @@ void VulkanEngine::draw() {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, commands[currentFrame].inFlightFence) != VK_SUCCESS) {
+    if (vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, commands[currentFrame].inFlightFence) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
 
-    VkSwapchainKHR swapChains[] = { swapChain->vkSwapChain };
+    VkSwapchainKHR swapChains[] = { swapChain.vkSwapChain };
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -120,7 +120,7 @@ void VulkanEngine::draw() {
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &imageIndex;
 
-    result = vkQueuePresentKHR(context->presentQueue, &presentInfo);
+    result = vkQueuePresentKHR(context.presentQueue, &presentInfo);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
         framebufferResized = false;
@@ -136,26 +136,26 @@ void VulkanEngine::draw() {
 void VulkanEngine::cleanup() {
     cleanupSwapChain();
 
-    vkDestroyDescriptorPool(context->device, descriptorPool, nullptr);
-    vkDestroyDescriptorSetLayout(context->device, globalSetLayout, nullptr);
-    vkDestroyDescriptorSetLayout(context->device, objectsSetLayout, nullptr);
-    vkDestroyDescriptorSetLayout(context->device, textureSetLayout, nullptr);
+    vkDestroyCommandPool(context.device, commandPool, nullptr);
+    vkDestroyDescriptorPool(context.device, descriptorPool, nullptr);
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-        descriptors[i].destroy();
+    vkDestroyDescriptorSetLayout(context.device, globalSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(context.device, objectsSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(context.device, textureSetLayout, nullptr);
 
-    for (auto& tex: textures)
-        tex.second.destroy();
+    for (auto& texture : textures)
+        texture.second.destroy();
 
     for (auto& mesh : meshes)
         mesh.second.destroy();
 
-    vkDestroyCommandPool(context->device, commandPool, nullptr);
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        descriptors[i].destroy();
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
         commands[i].destroy();
 
-    context->destroy();
+    context.destroy();
 
     glfwDestroyWindow(window);
 
@@ -223,26 +223,26 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
 
 // Vulkan core
 void VulkanEngine::initContext() {
-    context = new VulkanContext();
+    context = VulkanContext();
 
-    context->createInstance();
-    context->setupDebugMessenger();
-    context->createSurface(window);
-    context->pickPhysicalDevice();
-    context->createLogicalDevice();
+    context.createInstance();
+    context.setupDebugMessenger();
+    context.createSurface(window);
+    context.pickPhysicalDevice();
+    context.createLogicalDevice();
 }
 
 void VulkanEngine::initSwapChain() {
-    swapChain = new VulkanSwapChain(context);
+    swapChain = VulkanSwapChain(&context);
 
-    swapChain->createSwapChain(window);
-    swapChain->createImageViews();
+    swapChain.createSwapChain(window);
+    swapChain.createImageViews();
 }
 
 void VulkanEngine::createRenderPass() {
     VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = swapChain->imageFormat;
-    colorAttachment.samples = context->msaaSamples;
+    colorAttachment.format = swapChain.imageFormat;
+    colorAttachment.samples = context.msaaSamples;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -251,8 +251,8 @@ void VulkanEngine::createRenderPass() {
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     VkAttachmentDescription depthAttachment{};
-    depthAttachment.format = swapChain->depthFormat;
-    depthAttachment.samples = context->msaaSamples;
+    depthAttachment.format = swapChain.depthFormat;
+    depthAttachment.samples = context.msaaSamples;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -261,7 +261,7 @@ void VulkanEngine::createRenderPass() {
     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkAttachmentDescription colorAttachmentResolve{};
-    colorAttachmentResolve.format = swapChain->imageFormat;
+    colorAttachmentResolve.format = swapChain.imageFormat;
     colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -310,7 +310,7 @@ void VulkanEngine::createRenderPass() {
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(context.device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
     }
 }
@@ -320,9 +320,9 @@ void VulkanEngine::cleanupSwapChain() {
     for (auto& material : materials)
         material.second.pipeline.destroy();
 
-    vkDestroyRenderPass(context->device, renderPass, nullptr);
+    vkDestroyRenderPass(context.device, renderPass, nullptr);
 
-    swapChain->destroy();
+    swapChain.destroy();
 }
 
 void VulkanEngine::recreateSwapChain() {
@@ -332,7 +332,7 @@ void VulkanEngine::recreateSwapChain() {
         glfwWaitEvents();
     }
 
-    vkDeviceWaitIdle(context->device);
+    vkDeviceWaitIdle(context.device);
     cleanupSwapChain();
 
     initSwapChain();
@@ -340,28 +340,28 @@ void VulkanEngine::recreateSwapChain() {
     createFramebuffers();
 
     for (auto& material : materials)
-        material.second.updatePipeline({ globalSetLayout, objectsSetLayout, textureSetLayout }, swapChain->extent, renderPass);
+        material.second.updatePipeline({ globalSetLayout, objectsSetLayout, textureSetLayout }, swapChain.extent, renderPass);
 }
 
 
 
 // Commands
 void VulkanEngine::createCommandPool() {
-    QueueFamilyIndices queueFamilyIndices = context->findQueueFamilies(context->physicalDevice);
+    QueueFamilyIndices queueFamilyIndices = context.findQueueFamilies(context.physicalDevice);
 
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
 
-    if (vkCreateCommandPool(context->device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+    if (vkCreateCommandPool(context.device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create command pool!");
     }
 
 }
 
 void VulkanEngine::initCommands() {
-    commands = std::vector(MAX_FRAMES_IN_FLIGHT, VulkanCommand{ context });
+    commands = std::vector(MAX_FRAMES_IN_FLIGHT, VulkanCommand(&context));
 
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         commands[i].createCommandBuffer(commandPool);
@@ -370,7 +370,7 @@ void VulkanEngine::initCommands() {
 }
 
 void VulkanEngine::createFramebuffers() {
-    swapChain->createFramebuffers(commandPool, renderPass);
+    swapChain.createFramebuffers(commandPool, renderPass);
 }
 
 
@@ -390,7 +390,7 @@ void VulkanEngine::createDescriptorPool() {
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = 10;
 
-    if (vkCreateDescriptorPool(context->device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(context.device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor pool!");
     }
 }
@@ -408,7 +408,7 @@ void VulkanEngine::createDescriptorLayouts() {
     globalLayoutInfo.bindingCount = 1;
     globalLayoutInfo.pBindings = &cameraLayoutBinding;
 
-    if (vkCreateDescriptorSetLayout(context->device, &globalLayoutInfo, nullptr, &globalSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(context.device, &globalLayoutInfo, nullptr, &globalSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
 
@@ -424,7 +424,7 @@ void VulkanEngine::createDescriptorLayouts() {
     objectsLayoutInfo.bindingCount = 1;
     objectsLayoutInfo.pBindings = &objectsLayoutBinding;
 
-    if (vkCreateDescriptorSetLayout(context->device, &objectsLayoutInfo, nullptr, &objectsSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(context.device, &objectsLayoutInfo, nullptr, &objectsSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
 
@@ -441,13 +441,13 @@ void VulkanEngine::createDescriptorLayouts() {
     textureLayoutInfo.bindingCount = 1;
     textureLayoutInfo.pBindings = &textureLayoutBinding;
 
-    if (vkCreateDescriptorSetLayout(context->device, &textureLayoutInfo, nullptr, &textureSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(context.device, &textureLayoutInfo, nullptr, &textureSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
 }
 
 void VulkanEngine::initDescriptors() {
-    descriptors = std::vector(MAX_FRAMES_IN_FLIGHT, VulkanDescriptor(context, MAX_OBJECTS_RENDERED));
+    descriptors = std::vector(MAX_FRAMES_IN_FLIGHT, VulkanDescriptor(&context, MAX_OBJECTS_RENDERED));
 
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         descriptors[i].createBuffers();
@@ -463,14 +463,14 @@ void VulkanEngine::mapCameraData() {
     cameraData.proj = camera.projMatrix;
 
     void* data;
-    vkMapMemory(context->device, descriptors[currentFrame].cameraBuffer.allocation, 0, sizeof(CameraData), 0, &data);
+    vkMapMemory(context.device, descriptors[currentFrame].cameraBuffer.allocation, 0, sizeof(CameraData), 0, &data);
     memcpy(data, &cameraData, sizeof(CameraData));
-    vkUnmapMemory(context->device, descriptors[currentFrame].cameraBuffer.allocation);
+    vkUnmapMemory(context.device, descriptors[currentFrame].cameraBuffer.allocation);
 }
 
 void VulkanEngine::mapObjectsData() {
     void* data;
-    vkMapMemory(context->device, descriptors[currentFrame].objectsBuffer.allocation, 0, sizeof(ObjectData), 0, &data);
+    vkMapMemory(context.device, descriptors[currentFrame].objectsBuffer.allocation, 0, sizeof(ObjectData), 0, &data);
     ObjectData* objectsData = (ObjectData*)data;
 
     for (int i = 0; i < renderables.size(); i++) {
@@ -479,7 +479,7 @@ void VulkanEngine::mapObjectsData() {
         objectsData[i].albedo = object.albedoColor;
     }
 
-    vkUnmapMemory(context->device, descriptors[currentFrame].objectsBuffer.allocation);
+    vkUnmapMemory(context.device, descriptors[currentFrame].objectsBuffer.allocation);
 }
 
 
@@ -487,28 +487,28 @@ void VulkanEngine::mapObjectsData() {
 // Assets
 void VulkanEngine::initAssets() {
     loadTextures();
-    createMaterial("water"    , getTexture("water"), VulkanPipeline{ context, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL });
-    createMaterial("wireframe", getTexture("water"), VulkanPipeline{ context, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE });
+    createMaterial("water"    , getTexture("water"), VulkanPipeline(&context, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL));
+    createMaterial("wireframe", getTexture("water"), VulkanPipeline(&context, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE));
 
     loadMeshes();
     getMesh("sphere")->upload(commandPool);
 }
 
 void VulkanEngine::loadTextures() {
-    Texture waterTex{ context };
+    Texture waterTex{ &context };
     waterTex.loadFromFile(commandPool, WATER_TEXTURE_PATH.c_str());
     textures["water"] = waterTex;
 }
 
 void VulkanEngine::loadMeshes() {
-    Mesh sphereMesh{ context };
+    Mesh sphereMesh{ &context };
     sphereMesh.loadFromObj(SPHERE_MODEL_PATH.c_str());
     meshes["sphere"] = sphereMesh;
 }
 
 void VulkanEngine::createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline) {    
-    Material material{ context, pipeline, texture };
-    material.updatePipeline({ globalSetLayout, objectsSetLayout, textureSetLayout }, swapChain->extent, renderPass);
+    Material material{ &context, pipeline, texture };
+    material.updatePipeline({ globalSetLayout, objectsSetLayout, textureSetLayout }, swapChain.extent, renderPass);
     material.updateTexture(textureSetLayout, descriptorPool);
     materials[name] = material;
 }
@@ -559,8 +559,8 @@ Material* VulkanEngine::getMaterial(const std::string& name) {
 // Scene
 void VulkanEngine::initScene() {
     // init SPH logic
-    solver = WCSPHSolver();
-    solver.init(48, 27, 16, 20);
+    solver = IISPHsolver();
+    solver.init(48, 27, 16, 16);
 
     // init camera
     glm::vec3 eye = glm::vec3(0.0f, 0.0f, 10.0f);
@@ -709,27 +709,27 @@ void VulkanEngine::saveScreenshot(const char* filename) {
     VkFormatProperties formatProps;
 
     // Check if the device supports blitting from optimal images (the swapchain images are in optimal format)
-    vkGetPhysicalDeviceFormatProperties(context->physicalDevice, swapChain->imageFormat, &formatProps);
+    vkGetPhysicalDeviceFormatProperties(context.physicalDevice, swapChain.imageFormat, &formatProps);
     if (!(formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_SRC_BIT)) {
         supportsBlit = false;
     }
 
     // Check if the device supports blitting to linear images
-    vkGetPhysicalDeviceFormatProperties(context->physicalDevice, VK_FORMAT_R8G8B8A8_UNORM, &formatProps);
+    vkGetPhysicalDeviceFormatProperties(context.physicalDevice, VK_FORMAT_R8G8B8A8_UNORM, &formatProps);
     if (!(formatProps.linearTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT)) {
         supportsBlit = false;
     }
 
     // Source for the copy is the last rendered swapchain image
-    VkImage srcImage = swapChain->images[currentFrame];
+    VkImage srcImage = swapChain.images[currentFrame];
 
     // Create the linear tiled destination image to copy to and to read the memory from
     VkImageCreateInfo imageCreateCI(tools::imageCreateInfo());
     imageCreateCI.imageType = VK_IMAGE_TYPE_2D;
     // Note that vkCmdBlitImage (if supported) will also do format conversions if the swapchain color format would differ
     imageCreateCI.format = VK_FORMAT_R8G8B8A8_UNORM;
-    imageCreateCI.extent.width = swapChain->extent.width;
-    imageCreateCI.extent.height = swapChain->extent.height;
+    imageCreateCI.extent.width = swapChain.extent.width;
+    imageCreateCI.extent.height = swapChain.extent.height;
     imageCreateCI.extent.depth = 1;
     imageCreateCI.arrayLayers = 1;
     imageCreateCI.mipLevels = 1;
@@ -739,31 +739,31 @@ void VulkanEngine::saveScreenshot(const char* filename) {
     imageCreateCI.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     // Create the image
     VkImage dstImage;
-    if (vkCreateImage(context->device, &imageCreateCI, nullptr, &dstImage) != VK_SUCCESS) {
+    if (vkCreateImage(context.device, &imageCreateCI, nullptr, &dstImage) != VK_SUCCESS) {
         throw std::runtime_error("failed to create screenshot image!");
     }
     // Create memory to back up the image
     VkMemoryRequirements memRequirements;
     VkMemoryAllocateInfo memAllocInfo(tools::memoryAllocateInfo());
     VkDeviceMemory dstImageMemory;
-    vkGetImageMemoryRequirements(context->device, dstImage, &memRequirements);
+    vkGetImageMemoryRequirements(context.device, dstImage, &memRequirements);
     memAllocInfo.allocationSize = memRequirements.size;
     // Memory must be host visible to copy from
-    memAllocInfo.memoryTypeIndex = context->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    vkAllocateMemory(context->device, &memAllocInfo, nullptr, &dstImageMemory);
-    vkBindImageMemory(context->device, dstImage, dstImageMemory, 0);
+    memAllocInfo.memoryTypeIndex = context.findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    vkAllocateMemory(context.device, &memAllocInfo, nullptr, &dstImageMemory);
+    vkBindImageMemory(context.device, dstImage, dstImageMemory, 0);
 
     // Do the actual blit from the swapchain image to our host visible destination image
-    VkCommandBuffer copyCmd = context->beginSingleTimeCommands(commandPool);
+    VkCommandBuffer copyCmd = context.beginSingleTimeCommands(commandPool);
 
     // Transition destination image to transfer destination layout
-    VkImageMemoryBarrier imageMemoryBarrier = tools::imageMemoryBarrier();
-    imageMemoryBarrier.srcAccessMask = 0;
-    imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    imageMemoryBarrier.image = dstImage;
-    imageMemoryBarrier.subresourceRange = VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    VkImageMemoryBarrier imageMemoryBarrier0 = tools::imageMemoryBarrier();
+    imageMemoryBarrier0.srcAccessMask = 0;
+    imageMemoryBarrier0.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    imageMemoryBarrier0.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageMemoryBarrier0.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier0.image = dstImage;
+    imageMemoryBarrier0.subresourceRange = VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
     vkCmdPipelineBarrier(
         copyCmd,
@@ -772,7 +772,7 @@ void VulkanEngine::saveScreenshot(const char* filename) {
         0,
         0, nullptr,
         0, nullptr,
-        1, &imageMemoryBarrier);
+        1, &imageMemoryBarrier0);
 
     // Transition swapchain image from present to transfer source layout
     VkImageMemoryBarrier imageMemoryBarrier1 = tools::imageMemoryBarrier();
@@ -796,9 +796,9 @@ void VulkanEngine::saveScreenshot(const char* filename) {
     if (supportsBlit)
     {
         // Define the region to blit (we will blit the whole swapchain image)
-        VkOffset3D blitSize;
-        blitSize.x = swapChain->extent.width;
-        blitSize.y = swapChain->extent.height;
+        VkOffset3D blitSize{};
+        blitSize.x = swapChain.extent.width;
+        blitSize.y = swapChain.extent.height;
         blitSize.z = 1;
         VkImageBlit imageBlitRegion{};
         imageBlitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -825,8 +825,8 @@ void VulkanEngine::saveScreenshot(const char* filename) {
         imageCopyRegion.srcSubresource.layerCount = 1;
         imageCopyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         imageCopyRegion.dstSubresource.layerCount = 1;
-        imageCopyRegion.extent.width = swapChain->extent.width;
-        imageCopyRegion.extent.height = swapChain->extent.height;
+        imageCopyRegion.extent.width = swapChain.extent.width;
+        imageCopyRegion.extent.height = swapChain.extent.height;
         imageCopyRegion.extent.depth = 1;
 
         // Issue the copy command
@@ -874,22 +874,22 @@ void VulkanEngine::saveScreenshot(const char* filename) {
         0, nullptr,
         1, &imageMemoryBarrier3);
 
-    context->endSingleTimeCommands(commandPool, copyCmd);
+    context.endSingleTimeCommands(commandPool, copyCmd);
 
     // Get layout of the image (including row pitch)
     VkImageSubresource subResource{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 0 };
     VkSubresourceLayout subResourceLayout;
-    vkGetImageSubresourceLayout(context->device, dstImage, &subResource, &subResourceLayout);
+    vkGetImageSubresourceLayout(context.device, dstImage, &subResource, &subResourceLayout);
 
     // Map image memory so we can start copying from it
     const char* data;
-    vkMapMemory(context->device, dstImageMemory, 0, VK_WHOLE_SIZE, 0, (void**)&data);
+    vkMapMemory(context.device, dstImageMemory, 0, VK_WHOLE_SIZE, 0, (void**)&data);
     data += subResourceLayout.offset;
 
     std::ofstream file(filename, std::ios::out | std::ios::binary);
 
     // ppm header
-    file << "P6\n" << swapChain->extent.width << "\n" << swapChain->extent.height << "\n" << 255 << "\n";
+    file << "P6\n" << swapChain.extent.width << "\n" << swapChain.extent.height << "\n" << 255 << "\n";
 
     // If source is BGR (destination is always RGB) and we can't use blit (which does automatic conversion), we'll have to manually swizzle color components
     bool colorSwizzle = false;
@@ -898,14 +898,14 @@ void VulkanEngine::saveScreenshot(const char* filename) {
     if (!supportsBlit)
     {
         std::vector<VkFormat> formatsBGR = { VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SNORM };
-        colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), swapChain->imageFormat) != formatsBGR.end());
+        colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), swapChain.imageFormat) != formatsBGR.end());
     }
 
     // ppm binary pixel data
-    for (uint32_t y = 0; y < swapChain->extent.height; y++)
+    for (uint32_t y = 0; y < swapChain.extent.height; y++)
     {
         unsigned int* row = (unsigned int*)data;
-        for (uint32_t x = 0; x < swapChain->extent.width; x++)
+        for (uint32_t x = 0; x < swapChain.extent.width; x++)
         {
             if (colorSwizzle)
             {
@@ -926,7 +926,7 @@ void VulkanEngine::saveScreenshot(const char* filename) {
     std::cout << "Screenshot saved to disk" << std::endl;
 
     // Clean up resources
-    vkUnmapMemory(context->device, dstImageMemory);
-    vkFreeMemory(context->device, dstImageMemory, nullptr);
-    vkDestroyImage(context->device, dstImage, nullptr);
+    vkUnmapMemory(context.device, dstImageMemory);
+    vkFreeMemory(context.device, dstImageMemory, nullptr);
+    vkDestroyImage(context.device, dstImage, nullptr);
 }

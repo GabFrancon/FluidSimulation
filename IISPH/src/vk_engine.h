@@ -9,7 +9,8 @@
 #include "vk_texture.h"
 #include "vk_tools.h"
 
-#include "WCSPH/wcsph_solver.h"
+#include "SPH/wcsph_solver.h"
+#include "SPH/iisph_solver.h"
 
 
 
@@ -93,8 +94,8 @@ private:
     GLFWwindow* window;
 
     // Vulkan core
-    VulkanContext* context;
-    VulkanSwapChain* swapChain;
+    VulkanContext context;
+    VulkanSwapChain swapChain;
     VkRenderPass renderPass;
 
     // Commands
@@ -117,7 +118,8 @@ private:
     std::vector<RenderObject> renderables;
 
     // Logic
-    WCSPHSolver solver;
+    //WCSPHsolver solver;
+    IISPHsolver solver;
     float appTimer         = 0.0f;
     float lastClockTime    = 0.0f;
     float currentClockTime = 0.0f;
