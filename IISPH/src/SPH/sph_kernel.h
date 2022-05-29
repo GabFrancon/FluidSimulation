@@ -6,12 +6,6 @@
 #define M_PI 3.141592
 #endif
 
-struct Cell {
-    Cell(int _i, int _j) { x = _i; y = _j; }
-    int x = 0;
-    int y = 0;
-};
-
 // SPH Kernel function : cubic spline
 class CubicSpline
 {

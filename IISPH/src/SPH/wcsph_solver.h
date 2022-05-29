@@ -6,6 +6,12 @@
 #include <glm/exponential.hpp>
 
 
+struct Cell {
+    Cell(int _i, int _j) { x = _i; y = _j; }
+    int x = 0;
+    int y = 0;
+};
+
 class WCSPHsolver
 {
 public:

@@ -202,4 +202,6 @@ public:
 typedef Vector2<Real> Vec2f;
 inline const Vec2f operator*(const Real s, const Vec2f &r) { return r*s; }
 
+typedef Vector2<int> Vec2i;
+
 #endif  /* _VECTOR_H_ */
