@@ -15,33 +15,28 @@ public:
         const Real h = 0.5f,      // particle spacing
         const Real rho0 = 1e3f,   // rest density
         const Real nu = 0.08f,    // kinematic viscosity
-        const Real eta = 0.01f,   // compressibility
-        const Real gamma = 7.0f)  // EOS pow factor
+        const Real eta = 0.01f)   // compressibility
     {
         // fluid properties
-        _h = h;
+        _h    = h;
         _rho0 = rho0;
-        _nu = nu;
-        _eta = eta;
-        _gamma = gamma;
+        _nu   = nu;
+        _eta  = eta;
 
         // fixed constants
         _dt = 0.002f;
-        _g = Vec2f(0.0f, -9.8f);
+        _g  = Vec2f(0.0f, -9.8f);
+        _omega = 0.5f;
 
         // derived properties
         _m0 = _rho0 * _h * _h;
-        _c = std::fabs(_g.y) / _eta;
-        _k = _rho0 * _c * _c / _gamma;
         _kernel = CubicSpline(_h);
     }
 
     void init(const int gridX, const int gridY, const int fluidWidth, const int fluidHeight);
-    void addSolidBox(int bottomX, int bottomY, int topX, int topY);
     void update();
 
-    const inline Index fluidCount() const { return _fluidCount; }
-    const inline Index particleCount() const { return _position.size(); }
+    const inline Index particleCount() const { return _fluidCount; }
     const inline Vec2f& position(const Index i) const { return _position[i]; }
     const inline glm::vec3& color(const Index i) const { return _color[i]; }
     const inline int resX() const { return _resX; }
@@ -93,11 +88,10 @@ private:
     std::vector<Real>      _density;
     std::vector<glm::vec3> _color;
 
-    // new data
+    // temporary data
     std::vector<Vec2f> Dii;
     std::vector<Real>  Aii;
     std::vector<Vec2f> sumDijPj;
-
     std::vector<Vec2f> Vadv;
     std::vector<Real>  Dadv;
     std::vector<Real>  Pl;
@@ -116,7 +110,8 @@ private:
     // simulation
     int _resX = 0;                // grid resolution on x-axis
     int _resY = 0;                // grid resolution on y-axis
-    int _fluidCount = 0;          // number of fluid particles
+    int _fluidCount  = 0;         // number of fluid particles
+    Real _avgDensity = 0.0f;      // average density of fluid
 
     // SPH coefficients
     Real _dt;                     // time step
@@ -126,12 +121,9 @@ private:
     Real _h;                      // particle spacing
     Vec2f _g;                     // gravity
     Real _m0;                     // rest mass
-    Real _c;                      // speed of sound
-    Real _k;                      // EOS coefficient
-    Real _gamma;                  // EOS power factor
+    Real _omega;
 
-    Real _omega = 0.5f;
-    Real avgDensity = 0.0f;
+    // walls
     Real _l, _r, _b, _t;
 };
 

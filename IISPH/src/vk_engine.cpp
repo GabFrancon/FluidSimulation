@@ -894,7 +894,6 @@ void VulkanEngine::saveScreenshot(const char* filename) {
     // If source is BGR (destination is always RGB) and we can't use blit (which does automatic conversion), we'll have to manually swizzle color components
     bool colorSwizzle = false;
     // Check if source is BGR
-    // Note: Not complete, only contains most common and basic BGR surface formats for demonstration purposes
     if (!supportsBlit)
     {
         std::vector<VkFormat> formatsBGR = { VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SNORM };

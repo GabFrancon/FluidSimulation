@@ -1,5 +1,6 @@
 #include "iisph_solver.h"
 
+
 void IISPHsolver::init(const int gridX, const int gridY, const int fluidWidth, const int fluidHeight) {
     // - init a fluid mass of size (fluidWidth, fluitHeight)
     // - create a grid of gridX * gridY cells starting from bottom left corner of the fluid
@@ -18,11 +19,8 @@ void IISPHsolver::init(const int gridX, const int gridY, const int fluidWidth, c
         }
     }
     _fluidCount = _position.size();
-
-    
+ 
     // sample walls
-    //addSolidBox(0, 0, _resX, _resY);
-    //addSolidBox(30, 5, 40, 15);
     _l = 0.5 * _h;
     _r = static_cast<Real>(_resX) - 0.5 * _h;
     _b = 0.5 * _h;
@@ -32,19 +30,16 @@ void IISPHsolver::init(const int gridX, const int gridY, const int fluidWidth, c
     _color.clear();
     for (Index i = 0; i < _fluidCount; i++)
         _color.push_back(denseColor);
-    //for (Index i = _fluidCount; i < _position.size(); i++)
-        //_color.push_back(wallColor);
 
     // init other particle quantities
     _velocity = std::vector<Vec2f>(_position.size(), Vec2f(0, 0));
     _pressure = std::vector<Real>(_position.size(), 0);
     _density = std::vector<Real>(_position.size(), 0);
-    _neighborsGrid = std::vector<std::vector<Index>>(resX() * (size_t)resY(), std::vector<Index>());
+    _neighborsGrid = std::vector<std::vector<Index>>(_resX * (size_t)_resY, std::vector<Index>());
 
     Dii = std::vector<Vec2f>(_position.size(), Vec2f(0, 0));
     Aii = std::vector<Real>(_position.size(), 0);
     sumDijPj = std::vector<Vec2f>(_position.size(), Vec2f(0, 0));
-
     Vadv = std::vector<Vec2f>(_position.size(), Vec2f(0, 0));
     Dadv = std::vector<Real>(_position.size(), 0);
     Pl = std::vector<Real>(_position.size(), 0);
@@ -53,38 +48,13 @@ void IISPHsolver::init(const int gridX, const int gridY, const int fluidWidth, c
     Fp = std::vector<Vec2f>(_position.size(), Vec2f(0, 0));
 }
 
-void IISPHsolver::addSolidBox(int bottomX, int bottomY, int topX, int topY) {
-    for (int i = bottomX; i < topX; i++) {
-        _position.push_back(Vec2f(i + 0.25, bottomY + 0.25));
-        _position.push_back(Vec2f(i + 0.75, bottomY + 0.25));
-        _position.push_back(Vec2f(i + 0.25, bottomY + 0.75));
-        _position.push_back(Vec2f(i + 0.75, bottomY + 0.75));
-    }
-    for (int i = bottomX; i < topX; i++) {
-        _position.push_back(Vec2f(i + 0.25, topY - 0.25));
-        _position.push_back(Vec2f(i + 0.75, topY - 0.25));
-        _position.push_back(Vec2f(i + 0.25, topY - 0.75));
-        _position.push_back(Vec2f(i + 0.75, topY - 0.75));
-    }
-    for (int j = bottomY + 1; j < topY - 1; j++) {
-        _position.push_back(Vec2f(bottomX + 0.25, j + 0.25));
-        _position.push_back(Vec2f(bottomX + 0.75, j + 0.25));
-        _position.push_back(Vec2f(bottomX + 0.25, j + 0.75));
-        _position.push_back(Vec2f(bottomX + 0.75, j + 0.75));
-    }
-    for (int j = bottomY + 1; j < topY - 1; j++) {
-        _position.push_back(Vec2f(topX - 0.25, j + 0.25));
-        _position.push_back(Vec2f(topX - 0.75, j + 0.25));
-        _position.push_back(Vec2f(topX - 0.25, j + 0.75));
-        _position.push_back(Vec2f(topX - 0.75, j + 0.75));
-    }
-}
-
 void IISPHsolver::update() {
     buildNeighbor();
+
     predictAdvection();
     pressureSolve();
     integration();
+
     resolveCollision();
     updateColor();
 }
@@ -128,9 +98,9 @@ void IISPHsolver::predictAdvection() {
 
 void IISPHsolver::pressureSolve() {
     int l = 0;
-    avgDensity = 0.0f;
+    _avgDensity = 0.0f;
 
-    while ( ((avgDensity - _rho0) > _eta) || (l < 2) )
+    while ( ((_avgDensity - _rho0) > _eta) || (l < 2) )
     {
 #pragma omp parallel for
         for (int i = 0; i < _fluidCount; i++)
@@ -192,19 +162,19 @@ std::vector<Cell> IISPHsolver::getNeighbourCells(const int i, const int j)
 
     if (i > 0)
         neighbors.push_back(Cell(i - 1, j));
-    if (i < resX() - 1)
+    if (i < _resX - 1)
         neighbors.push_back(Cell(i + 1, j));
     if (j > 0)
         neighbors.push_back(Cell(i, j - 1));
-    if (j < resY() - 1)
+    if (j < _resY - 1)
         neighbors.push_back(Cell(i, j + 1));
     if (i > 0 && j > 0)
         neighbors.push_back(Cell(i - 1, j - 1));
-    if (i < resX() - 1 && j > 0)
+    if (i < _resX - 1 && j > 0)
         neighbors.push_back(Cell(i + 1, j - 1));
-    if (i > 0 && j < resY() - 1)
+    if (i > 0 && j < _resY - 1)
         neighbors.push_back(Cell(i - 1, j + 1));
-    if (i < resX() - 1 && j < resY() - 1)
+    if (i < _resX - 1 && j < _resY - 1)
         neighbors.push_back(Cell(i + 1, j + 1));
 
     return neighbors;
@@ -212,7 +182,7 @@ std::vector<Cell> IISPHsolver::getNeighbourCells(const int i, const int j)
 
 Index IISPHsolver::idx1d(const int i, const int j) {
     static int maxInd = _resX * _resY - 1;
-    return clamp(i + j * resX(), 0, maxInd);
+    return clamp(i + j * _resX, 0, maxInd);
 }
 
 std::vector<Index> IISPHsolver::getNeighbors(int i) {
@@ -226,8 +196,6 @@ std::vector<Index> IISPHsolver::getNeighbors(int i) {
     }
     return neighbors;
 }
-
-//////////////////////////////////////////////////////
 
 void IISPHsolver::computeDensity(int i) {
     _density[i] = 0.0f;
@@ -281,8 +249,6 @@ void IISPHsolver::storeDii(int i) {
         }
 }
 
-///////////////////////////////////////////////////////
-
 void IISPHsolver::predictDensity(int i) {
     Dadv[i] = _density[i];
     Vec2f pos_ij;
@@ -314,8 +280,6 @@ void IISPHsolver::storeAii(int i) {
             Aii[i] += _m0 * (Dii[i] - d_ji).dotProduct(_kernel.gradW(pos_ij));       
         }
 }
-
-////////////////////////////////////////////////////////
 
 void IISPHsolver::storeSumDijPj(int i) {
     sumDijPj[i].x = 0.0f;
@@ -360,14 +324,12 @@ void IISPHsolver::computePressure(int i) {
 
 void IISPHsolver::computeError()
 {
-    avgDensity = 0.0;
-    for (int i = 0; i < _position.size(); i++)
-        avgDensity += Dcorr[i];
+    _avgDensity = 0.0;
+    for (int i = 0; i < _fluidCount; i++)
+        _avgDensity += Dcorr[i];
 
-    avgDensity /= _position.size();
+    _avgDensity /= _position.size();
 }
-
-////////////////////////////////////////////////////////
 
 void IISPHsolver::computePressureForces(int i) {
     Fp[i].x = 0.0f;

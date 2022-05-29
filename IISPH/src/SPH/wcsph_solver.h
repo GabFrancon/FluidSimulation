@@ -39,8 +39,7 @@ public:
     void addSolidBox(int bottomX, int bottomY, int topX, int topY);
     void update();
 
-    const inline Index fluidCount() const { return _fluidCount; }
-    const inline Index particleCount() const { return _position.size(); }
+    const inline Index particleCount() const { return _fluidCount; }
     const inline Vec2f& position(const Index i) const { return _position[i]; }
     const inline glm::vec3& color(const Index i) const { return _color[i]; }
     const inline int resX() const { return _resX; }
@@ -59,6 +58,7 @@ private:
     void applyViscousForce();
     void updateVelocity();
     void updatePosition();
+    void resolveCollision();
     void updateColor();
 
 
@@ -99,4 +99,7 @@ private:
     Real _c;                      // speed of sound
     Real _k;                      // EOS coefficient
     Real _gamma;                  // EOS power factor
+
+    // walls
+    Real _l, _r, _b, _t;
 };

@@ -118,7 +118,6 @@ private:
     std::vector<RenderObject> renderables;
 
     // Logic
-    //WCSPHsolver solver;
     IISPHsolver solver;
     float appTimer         = 0.0f;
     float lastClockTime    = 0.0f;
