@@ -58,11 +58,12 @@ private:
     /*-------------------------------------------Neighbor search------------------------------------------------*/
 
     void get9NeighborCells(std::vector<Index>& neighbors, Vec2f particle, const int radius);
-    Vec2i cellPos(Vec2f particle);
     Index cellID(Vec2f particle);
     Index cellID(int i, int j);
-    bool isInsideGrid(int id);
-    void findNeighbors(int particleID, const int radius);
+    bool  isInsideGrid(Vec2f particle);
+    bool  isInsideGrid(int id);
+    Vec2i cellPos(Vec2f particle);
+    void  findNeighbors(int particleID, const int radius);
 
 
     /*------------------------------------------Fluid simulation-------------------------------------------------*/

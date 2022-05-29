@@ -159,13 +159,12 @@ void IISPHsolver::updateColor() {
 /*-------------------------------------------Neighbor search------------------------------------------------*/
 
 void IISPHsolver::get9NeighborCells(std::vector<Index>& neighbors, Vec2f particle, const int radius) {
-    Vec2i cell = cellPos(particle);
-    int   id   = cellID(particle);
-
-    if (!isInsideGrid(id)) {
+    if (!isInsideGrid(particle)) {
         neighbors.clear();
         return;
     }
+
+    Vec2i cell = cellPos(particle);
 
     int imin = std::max(cell.x - radius, 0);
     int imax = std::min(cell.x + radius, _resX - 1);
@@ -183,13 +182,6 @@ void IISPHsolver::get9NeighborCells(std::vector<Index>& neighbors, Vec2f particl
         }
 }
 
-Vec2i IISPHsolver::cellPos(Vec2f particle) {
-    Vec2i cell;
-    cell.x = std::floor(particle.x);
-    cell.y = std::floor(particle.y);
-    return cell;
-}
-
 Index IISPHsolver::cellID(Vec2f particle) {
     Vec2i cell = cellPos(particle);
     return cellID(cell.x, cell.y);
@@ -199,8 +191,20 @@ Index IISPHsolver::cellID(int i, int j) {
     return i + j * _resX;
 }
 
+bool IISPHsolver::isInsideGrid(Vec2f particle) {
+    Index id = cellID(particle);
+    return isInsideGrid(id);
+}
+
 bool IISPHsolver::isInsideGrid(int id) {
     return id >= 0 && id < _resX * _resY;
+}
+
+Vec2i IISPHsolver::cellPos(Vec2f particle) {
+    Vec2i cell;
+    cell.x = std::floor(particle.x);
+    cell.y = std::floor(particle.y);
+    return cell;
 }
 
 void IISPHsolver::findNeighbors(int particleID, const int radius) {
@@ -387,13 +391,11 @@ void IISPHsolver::updateVelocity(int i) {
 }
 
 void IISPHsolver::updatePosition(int i) {
-    Vec2f previousPos = _position[i];
-    _position[i] += _dt * _velocity[i];
 
-    if (!isInsideGrid(cellID(_position[i]))) {
-        _position[i] = previousPos;
+    if (isInsideGrid(_position[i] + _dt * _velocity[i]) )
+        _position[i] += _dt * _velocity[i];
+    else
         debugCrash(i);
-    }
 }
 
 void IISPHsolver::debugCrash(int i) {
