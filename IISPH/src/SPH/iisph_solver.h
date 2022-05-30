@@ -38,8 +38,8 @@ public:
     void update();
 
     const inline Index particleCount() const { return _fluidCount; }
-    const inline Vec2f& position(const Index i) const { return _position[i]; }
-    const inline glm::vec3& color(const Index i) const { return _color[i]; }
+    const inline Vec2f& position(const Index i) const { return _fPosition[i]; }
+    const inline glm::vec3& color(const Index i) const { return _fColor[i]; }
     const inline int resX() const { return _resX; }
     const inline int resY() const { return _resY; }
 
@@ -57,13 +57,14 @@ private:
 
     /*-------------------------------------------Neighbor search------------------------------------------------*/
 
-    void get9NeighborCells(std::vector<Index>& neighbors, Vec2f particle, const int radius);
+    void getNeighborCells(std::vector<Index>& neighbors, Vec2f particle, const int radius);
     Index cellID(Vec2f particle);
     Index cellID(int i, int j);
     bool  isInsideGrid(Vec2f particle);
     bool  isInsideGrid(int id);
     Vec2i cellPos(Vec2f particle);
-    void  findNeighbors(int particleID, const int radius);
+    void  fillNeighborGrid(int i);
+    void  findNeighbors(int i, const int radius);
 
 
     /*------------------------------------------Fluid simulation-------------------------------------------------*/
@@ -95,12 +96,18 @@ private:
     // smooth kernel
     CubicSpline _kernel;
 
-    // particle data
-    std::vector<Vec2f>     _position;
-    std::vector<Vec2f>     _velocity;
-    std::vector<Real>      _pressure;
-    std::vector<Real>      _density;
-    std::vector<glm::vec3> _color;
+    // fluid particles data
+    std::vector<Vec2f>     _fPosition;
+    std::vector<Vec2f>     _fVelocity;
+    std::vector<Real>      _fPressure;
+    std::vector<Real>      _fDensity;
+    std::vector<glm::vec3> _fColor;
+
+    // boundary particles data
+    std::vector<Vec2f>     _bPosition;
+    std::vector<Vec2f>     _bVelocity;
+    std::vector<Real>      _bDensity;
+    std::vector<glm::vec3> _bColor;
 
     // temporary data
     std::vector<Vec2f> Dii;
