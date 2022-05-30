@@ -35,11 +35,18 @@ public:
     }
 
     void init(const int gridX, const int gridY, const int fluidWidth, const int fluidHeight);
+    void sampleFluidCube(int bottomX, int bottomY, int topX, int topY);
+    void sampleBoundaryCube(int bottomX, int bottomY, int topX, int topY);
     void update();
 
-    const inline Index particleCount() const { return _fluidCount; }
-    const inline Vec2f& position(const Index i) const { return _fPosition[i]; }
-    const inline glm::vec3& color(const Index i) const { return _fColor[i]; }
+    const inline Index      fluidCount() const { return _fluidCount; }
+    const inline Vec2f&     fluidPosition(const Index i) const { return _fPosition[i]; }
+    const inline glm::vec3& fluidColor(const Index i) const { return _fColor[i]; }
+
+    const inline Index      boundaryCount() const { return _boundaryCount; }
+    const inline Vec2f&     boundaryPosition(const Index i) const { return _bPosition[i]; }
+    const inline glm::vec3& boundaryColor(const Index i) const { return _bColor[i]; }
+
     const inline int resX() const { return _resX; }
     const inline int resY() const { return _resY; }
 
@@ -47,28 +54,32 @@ public:
 private:
     /*--------------------------------------------Main functions--------------------------------------------------*/
 
-    void buildNeighborGrid();
+    void initNeighbors();
+    void updateNeighbors();
     void predictAdvection();
     void pressureSolve();
     void integration();
     void resolveCollision();
-    void updateColor();
 
 
     /*-------------------------------------------Neighbor search------------------------------------------------*/
 
-    void getNeighborCells(std::vector<Index>& neighbors, Vec2f particle, const int radius);
+    void  buildNeighborGrid();
+    void  getNeighborCells(std::vector<Index>& neighbors, Vec2f particle, const int radius);
     Index cellID(Vec2f particle);
     Index cellID(int i, int j);
     bool  isInsideGrid(Vec2f particle);
     bool  isInsideGrid(int id);
     Vec2i cellPos(Vec2f particle);
-    void  fillNeighborGrid(int i);
-    void  findNeighbors(int i, const int radius);
+    void  fillFluidGrid(int i);
+    void  fillBoundaryGrid(int i);
+    void  findFluidNeighbors(int i, const int radius);
+    void  findBoundaryNeighbors(std::vector< Index >& neighbors, int i, const int radius);
 
 
     /*------------------------------------------Fluid simulation-------------------------------------------------*/
 
+    void computeBoundaryDensity(int i);
     void computeDensity(int i);
     void computeAdvectionForces(int i);
     void addBodyForce(int i);
@@ -87,8 +98,14 @@ private:
     void computePressureForces(int i);
     void updateVelocity(int i);
     void updatePosition(int i);
+   
+
+    /*----------------------------------------Debug / visualization-----------------------------------------------*/
+
+    void visualizeFluidDensity();
+    void visualizeBoundaryDensity();
+    void viualizeFluidNeighbors(int i);
     void debugCrash(int i);
-    
 
 
     /*-------------------------------------------Class members---------------------------------------------------*/
@@ -120,19 +137,27 @@ private:
     std::vector<Vec2f> Fadv;
     std::vector<Vec2f> Fp;
 
-    // neigboring structure
-    std::vector< std::vector<Index> > _neighborsGrid;
-    std::vector< std::vector<Index> > _fluidNeighbors;
+    // neigboring structures
+    std::vector< std::vector<Index> > _fGrid;
+    std::vector< std::vector<Index> > _fNeighbors;
+    std::vector< std::vector<Index> > _bGrid;
+    std::vector< std::vector<Index> > _bNeighbors;
+
 
     // visualization
     glm::vec3 wallColor  = { 195 / 255.0f,  50 / 255.0f,  30 / 255.0f };
     glm::vec3 lightColor = { 213 / 255.0f, 240 / 255.0f, 255 / 255.0f };
     glm::vec3 denseColor = {   2 / 255.0f,  73 / 255.0f, 113 / 255.0f };
+    glm::vec3 redColor   = { 255 / 255.0f,   0 / 255.0f,   0 / 255.0f };
+    glm::vec3 greenColor = {   0 / 255.0f, 255 / 255.0f,   0 / 255.0f };
+    glm::vec3 pinkColor  = { 255 / 255.0f,   0 / 255.0f, 255 / 255.0f };
+
 
     // simulation
     int  _resX = 0;               // grid resolution on x-axis
     int  _resY = 0;               // grid resolution on y-axis
-    int  _fluidCount = 0;         // number of fluid particles
+    int  _fluidCount    = 0;      // number of fluid particles
+    int  _boundaryCount = 0;      // number of boundary particles
     Real _avgDensity = 0.0f;      // average density of fluid
 
     // SPH coefficients

@@ -572,22 +572,41 @@ void VulkanEngine::initScene() {
     camera.viewMatrix = glm::lookAt(eye, center, up);
     camera.projMatrix = Camera::ortho(0.0f, solver.resX(), 0.0f, solver.resY(), near, far);
 
-    // create particles
-    for (int i = 0 ; i < solver.particleCount() ; i++) {
-        glm::vec3 position = glm::vec3(solver.position(i).x, solver.position(i).y, 0.0f);
+    // create fluid particles
+    for (int i = 0 ; i < solver.fluidCount(); i++) {
+        glm::vec3 position = glm::vec3(solver.fluidPosition(i).x, solver.fluidPosition(i).y, 0.0f);
         glm::vec3 size = glm::vec3(0.1f);
         glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
         float angle = 0.0f;
 
-        RenderObject waterParticle{};
-        waterParticle.mesh        = getMesh("sphere");
-        waterParticle.material    = getMaterial("water");
-        waterParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-        waterParticle.albedoColor = solver.color(i);
+        RenderObject fluidParticle{};
+        fluidParticle.mesh        = getMesh("sphere");
+        fluidParticle.material    = getMaterial("water");
+        fluidParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+        fluidParticle.albedoColor = solver.fluidColor(i);
 
-        renderables.push_back(waterParticle);
+        renderables.push_back(fluidParticle);
     }
-    std::cout << "number of particles : " << solver.particleCount() << "\n" << std::endl;
+
+    // create boundary particles
+    for (int i = 0; i < solver.boundaryCount(); i++) {
+        glm::vec3 position = glm::vec3(solver.boundaryPosition(i).x, solver.boundaryPosition(i).y, 0.0f);
+        glm::vec3 size = glm::vec3(0.1f);
+        glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
+        float angle = 0.0f;
+
+        RenderObject boundaryParticle{};
+        boundaryParticle.mesh = getMesh("sphere");
+        boundaryParticle.material = getMaterial("water");
+        boundaryParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+        boundaryParticle.albedoColor = solver.boundaryColor(i);
+
+        renderables.push_back(boundaryParticle);
+    }
+    std::cout 
+        << "number of fluid particles    : " << solver.fluidCount() << "\n" 
+        << "number of boundary particles : " << solver.boundaryCount() << "\n"
+        << std::endl;
 }
 
 void VulkanEngine::updateScene() {
@@ -601,15 +620,26 @@ void VulkanEngine::updateScene() {
         for (int i = 0; i < 4; ++i)
             solver.update();
 
-        // update particles
-        for (int i = 0; i < solver.particleCount(); i++) {
-            glm::vec3 position = glm::vec3(solver.position(i).x, solver.position(i).y, 0.0f);
+        // update fluid particles
+        for (int i = 0; i < solver.fluidCount(); i++) {
+            glm::vec3 position = glm::vec3(solver.fluidPosition(i).x, solver.fluidPosition(i).y, 0.0f);
             glm::vec3 size = glm::vec3(0.1f);
             glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
             float angle = 0.0f;
 
             renderables[i].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-            renderables[i].albedoColor = solver.color(i);
+            renderables[i].albedoColor = solver.fluidColor(i);
+        }
+
+        // update boundary particles
+        for (int i = 0; i < solver.boundaryCount(); i++) {
+            glm::vec3 position = glm::vec3(solver.boundaryPosition(i).x, solver.boundaryPosition(i).y, 0.0f);
+            glm::vec3 size = glm::vec3(0.1f);
+            glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
+            float angle = 0.0f;
+
+            renderables[i + solver.fluidCount()].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+            renderables[i + solver.fluidCount()].albedoColor = solver.boundaryColor(i);
         }
     }
 
