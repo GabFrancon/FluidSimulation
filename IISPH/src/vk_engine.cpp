@@ -617,7 +617,7 @@ void VulkanEngine::updateScene() {
         appTimer += dt;
 
         //compute SPH logic
-        for (int i = 0; i < 4; ++i)
+        for (int i = 0; i < 1; i++)
             solver.update();
 
         // update fluid particles

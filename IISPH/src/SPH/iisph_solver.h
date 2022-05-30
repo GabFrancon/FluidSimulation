@@ -25,7 +25,7 @@ public:
         _eta  = eta;
 
         // fixed constants
-        _dt = 0.005f;
+        _dt = 0.025f;
         _g  = Vec2f(0.0f, -9.8f);
         _omega = 0.5f;
 
@@ -59,7 +59,6 @@ private:
     void predictAdvection();
     void pressureSolve();
     void integration();
-    void resolveCollision();
 
 
     /*-------------------------------------------Neighbor search------------------------------------------------*/
@@ -122,7 +121,6 @@ private:
 
     // boundary particles data
     std::vector<Vec2f>     _bPosition;
-    std::vector<Vec2f>     _bVelocity;
     std::vector<Real>      _bDensity;
     std::vector<glm::vec3> _bColor;
 
@@ -168,9 +166,6 @@ private:
     Real _h;                      // particle spacing
     Vec2f _g;                     // gravity
     Real _m0;                     // rest mass
-    Real _omega;                  // Jacobi's relaxed coef
-
-    // walls
-    Real _l, _r, _b, _t;
+    Real _omega;                  // Jacobi's relaxed coeff
 };
 

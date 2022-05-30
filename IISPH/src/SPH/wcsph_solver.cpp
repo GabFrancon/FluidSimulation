@@ -10,39 +10,40 @@ void WCSPHsolver::init(const int gridX, const int gridY, const int fluidWidth, c
 
     // sample fluid mass
     _position.clear();
-    for (int j = 0; j < fluidHeight; j++) {
-        for (int i = 0; i < fluidWidth; i++) {
+    sampleFluidCube(1, 1, fluidWidth + 1, fluidHeight + 1);
+    _fluidCount = _position.size();
+
+    // sample boundaries
+    sampleBoundaryCube(0, 0, _resX, _resY);
+    _boundaryCount = _position.size() - _fluidCount;
+
+    // color particles
+    _color.clear();
+    for (Index i = 0; i < _fluidCount; i++)
+        _color.push_back(denseColor);
+    for (Index i = _fluidCount; i < _fluidCount + _boundaryCount; i++)
+        _color.push_back(wallColor);
+
+    // init other particle quantities
+    _velocity = std::vector<Vec2f>(_fluidCount + (size_t)_boundaryCount, Vec2f(0, 0));
+    _acceleration = std::vector<Vec2f>(_fluidCount + (size_t)_boundaryCount, Vec2f(0, 0));
+    _pressure = std::vector<Real>(_fluidCount + (size_t)_boundaryCount, 0);
+    _density = std::vector<Real>(_fluidCount + (size_t)_boundaryCount, 0);
+    _neighborsGrid = std::vector<std::vector<Index>>(_resX * (size_t)_resY, std::vector<Index>());
+}
+
+void WCSPHsolver::sampleFluidCube(int bottomX, int bottomY, int topX, int topY) {
+    for (int j = bottomY; j < topY; j++) {
+        for (int i = bottomX; i < topX; i++) {
             _position.push_back(Vec2f(i + 0.25, j + 0.25));
             _position.push_back(Vec2f(i + 0.75, j + 0.25));
             _position.push_back(Vec2f(i + 0.25, j + 0.75));
             _position.push_back(Vec2f(i + 0.75, j + 0.75));
         }
     }
-    _fluidCount = _position.size();
-
-    // sample walls
-    //addSolidBox(0, 0, _resX, _resY);
-    _l = 0.5 * _h;
-    _r = static_cast<Real>(_resX) - 0.5 * _h;
-    _b = 0.5 * _h;
-    _t = static_cast<Real>(_resY) - 0.5 * _h;
-
-    // color particles
-    _color.clear();
-    for (Index i = 0; i < _fluidCount; i++)
-        _color.push_back(denseColor);
-    //for (Index i = _fluidCount; i < _position.size(); i++)
-        //_color.push_back(wallColor);
-
-    // init other particle quantities
-    _velocity = std::vector<Vec2f>(_position.size(), Vec2f(0, 0));
-    _acceleration = std::vector<Vec2f>(_position.size(), Vec2f(0, 0));
-    _pressure = std::vector<Real>(_position.size(), 0);
-    _density = std::vector<Real>(_position.size(), 0);
-    _neighborsGrid = std::vector<std::vector<Index>>(_resX * (size_t)_resY, std::vector<Index>());
 }
 
-void WCSPHsolver::addSolidBox(int bottomX, int bottomY, int topX, int topY) {
+void WCSPHsolver::sampleBoundaryCube(int bottomX, int bottomY, int topX, int topY) {
     for (int i = bottomX; i < topX; i++) {
         _position.push_back(Vec2f(i + 0.25, bottomY + 0.25));
         _position.push_back(Vec2f(i + 0.75, bottomY + 0.25));
@@ -81,7 +82,6 @@ void WCSPHsolver::update()
 
     updateVelocity();
     updatePosition();
-    resolveCollision();
     updateColor();
 }
 
@@ -132,7 +132,7 @@ void WCSPHsolver::buildNeighbor()
     for (auto& indices : _neighborsGrid)
         indices.clear();
 
-    for (int i = 0; i < _position.size(); i++)
+    for (int i = 0; i < _fluidCount + _boundaryCount; i++)
     {
         Vec2f particle = _position[i];
         int x = std::floor(particle.x);
@@ -144,7 +144,7 @@ void WCSPHsolver::buildNeighbor()
 void WCSPHsolver::computeDensity()
 {
 #pragma omp parallel for
-    for (int i = 0; i < _position.size(); i++)
+    for (int i = 0; i < _fluidCount + _boundaryCount; i++)
     {
         _density[i] = 0.0f;
 
@@ -159,7 +159,7 @@ void WCSPHsolver::computeDensity()
 void WCSPHsolver::computePressure()
 {
 #pragma omp parallel for
-    for (int i = 0; i < _position.size(); i++)
+    for (int i = 0; i < _fluidCount + _boundaryCount; i++)
         _pressure[i] = std::max(0.0f, _k * (std::pow(_density[i] / _rho0, _gamma) - 1));
 }
 
@@ -215,22 +215,6 @@ void WCSPHsolver::updatePosition()
 #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++)
         _position[i] += _velocity[i] * _dt;
-}
-
-void WCSPHsolver::resolveCollision()
-{
-    std::vector<Index> need_res;
-    for (Index i = 0; i < _fluidCount; i++) {
-        if (_position[i].x <= _l || _position[i].y <= _b || _position[i].x >= _r || _position[i].y >= _t)
-            need_res.push_back(i);
-    }
-
-    for (auto it = need_res.begin(); it < need_res.end(); ++it) {
-        const Vec2f p0 = _position[*it];
-        _position[*it].x = clamp(_position[*it].x, _l, _r);
-        _position[*it].y = clamp(_position[*it].y, _b, _t);
-        _velocity[*it] = (_position[*it] - p0) / _dt;
-    }
 }
 
 void WCSPHsolver::updateColor()

@@ -42,12 +42,18 @@ public:
 
 
     void init(const int gridX, const int gridY, const int fluidWidth, const int fluidHeight);
-    void addSolidBox(int bottomX, int bottomY, int topX, int topY);
+    void sampleFluidCube(int bottomX, int bottomY, int topX, int topY);
+    void sampleBoundaryCube(int bottomX, int bottomY, int topX, int topY);
     void update();
 
-    const inline Index particleCount() const { return _fluidCount; }
-    const inline Vec2f& position(const Index i) const { return _position[i]; }
-    const inline glm::vec3& color(const Index i) const { return _color[i]; }
+    const inline Index      fluidCount() const { return _fluidCount; }
+    const inline Vec2f&     fluidPosition(const Index i) const { return _position[i]; }
+    const inline glm::vec3& fluidColor(const Index i) const { return _color[i]; }
+
+    const inline Index      boundaryCount() const { return _boundaryCount; }
+    const inline Vec2f&     boundaryPosition(const Index i) const { return _position[_fluidCount + i]; }
+    const inline glm::vec3& boundaryColor(const Index i) const { return _color[_fluidCount + i]; }
+
     const inline int resX() const { return _resX; }
     const inline int resY() const { return _resY; }
 
@@ -64,7 +70,6 @@ private:
     void applyViscousForce();
     void updateVelocity();
     void updatePosition();
-    void resolveCollision();
     void updateColor();
 
 
@@ -92,7 +97,8 @@ private:
     // simulation
     int _resX = 0;                // grid resolution on x-axis
     int _resY = 0;                // grid resolution on y-axis
-    int _fluidCount = 0;          // number of fluid particles
+    int _fluidCount    = 0;       // number of fluid particles
+    int _boundaryCount = 0;       // number of boundary particles
 
     // SPH coefficients
     Real _dt;                     // time step
@@ -105,7 +111,4 @@ private:
     Real _c;                      // speed of sound
     Real _k;                      // EOS coefficient
     Real _gamma;                  // EOS power factor
-
-    // walls
-    Real _l, _r, _b, _t;
 };

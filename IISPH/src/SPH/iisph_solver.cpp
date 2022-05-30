@@ -22,22 +22,14 @@ void IISPHsolver::init(const int gridX, const int gridY, const int fluidWidth, c
     _boundaryCount = _bPosition.size();
     _bColor = std::vector<glm::vec3>(_boundaryCount, wallColor);
 
-    // walls
-    _l = 2.0f * _h;
-    _r = static_cast<Real>(_resX) - 2.0f * _h;
-    _b = 2.0f * _h;
-    _t = static_cast<Real>(_resY) - 2.0f * _h;
-
     // init other particle quantities
-    _fVelocity  = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
-    _bVelocity = std::vector<Vec2f>(_boundaryCount, Vec2f(0, 0));
-
     _fDensity = std::vector<Real>(_fluidCount, 0);
     _bDensity = std::vector<Real>(_boundaryCount, 0);
 
     _fNeighbors = std::vector<std::vector<Index>>(_fluidCount, std::vector<Index>());
     _bNeighbors = std::vector<std::vector<Index>>(_fluidCount, std::vector<Index>());
 
+    _fVelocity = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
     _fPressure = std::vector<Real>(_fluidCount, 0);
 
     Dii      = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
@@ -110,10 +102,8 @@ void IISPHsolver::update() {
     predictAdvection();
     pressureSolve();
     integration();
-    resolveCollision();
 
     visualizeFluidDensity();
-    viualizeFluidNeighbors(500);
 }
 
 void IISPHsolver::updateNeighbors() {
@@ -172,21 +162,6 @@ void IISPHsolver::integration() {
     for (int i = 0; i < _fluidCount; i++) {
         updateVelocity(i);
         updatePosition(i);
-    }
-}
-
-void IISPHsolver::resolveCollision() {
-    std::vector<Index> need_res;
-    for (Index i = 0; i < _fluidCount; i++) {
-        if (_fPosition[i].x<=_l || _fPosition[i].y<=_b || _fPosition[i].x>=_r || _fPosition[i].y>=_t)
-            need_res.push_back(i);
-    }
-
-    for (auto it = need_res.begin(); it < need_res.end(); ++it) {
-        const Vec2f p0 = _fPosition[*it];
-        _fPosition[*it].x = clamp(_fPosition[*it].x, _l, _r);
-        _fPosition[*it].y = clamp(_fPosition[*it].y, _b, _t);
-        _fVelocity[*it] = (_fPosition[*it] - p0) / _dt;
     }
 }
 
@@ -342,13 +317,14 @@ void IISPHsolver::computeBoundaryDensity(int i) {
     _bDensity[i] = 0.0f;
     Vec2f pos_ij;
 
-    std::vector<Index> neighbors;
-    findBoundaryNeighbors(neighbors, i, _h);
+    std::vector<Index> boundaryNeighbors;
+    findBoundaryNeighbors(boundaryNeighbors, i, _h);
 
-    for (Index& j : neighbors) {
+    for (Index& j : boundaryNeighbors) {
         pos_ij = _bPosition[i] - _bPosition[j];
         _bDensity[i] += _kernel.W(pos_ij);
     }
+
     _bDensity[i] = _rho0 / _bDensity[i];
 }
 
@@ -356,12 +332,17 @@ void IISPHsolver::computeDensity(int i) {
     _fDensity[i] = 0.0f;
     Vec2f pos_ij;
 
-    std::vector<Index> neighbors = _fNeighbors[i];
-    for (Index& j : neighbors) {
+    std::vector<Index> fluidNeighbors = _fNeighbors[i];
+    for (Index& j : fluidNeighbors) {
         pos_ij = _fPosition[i] - _fPosition[j];
-        _fDensity[i] += _kernel.W(pos_ij);
+        _fDensity[i] += _m0 * _kernel.W(pos_ij);
     }
-    _fDensity[i] = _m0 * _fDensity[i];
+
+    std::vector<Index> boundaryNeighbors = _bNeighbors[i];
+    for (Index& j : boundaryNeighbors) {
+        pos_ij = _fPosition[i] - _bPosition[j];
+        _fDensity[i] += _bDensity[j] * _kernel.W(pos_ij);
+    }
 }
 
 void IISPHsolver::computeAdvectionForces(int i) {
@@ -379,8 +360,8 @@ void IISPHsolver::addViscousForce(int i) {
     Vec2f pos_ij;
     Vec2f vel_ij;
 
-    std::vector<Index> neighbors = _fNeighbors[i];
-    for (Index& j : neighbors)
+    std::vector<Index> fluidNeighbors = _fNeighbors[i];
+    for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
             vel_ij = _fVelocity[i] - _fVelocity[j];
@@ -397,26 +378,46 @@ void IISPHsolver::storeDii(int i) {
     Dii[i].y = 0.0f;
     Vec2f pos_ij;
 
-    std::vector<Index> neighbors = _fNeighbors[i];
-    for (Index& j : neighbors)
+    std::vector<Index> fluidNeighbors = _fNeighbors[i];
+    for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
-            Dii[i] += square(_dt) * (-_m0 / square(_fDensity[i])) * _kernel.gradW(pos_ij);
+            Dii[i] += (-_m0 / square(_fDensity[i])) * _kernel.gradW(pos_ij);
         }
+
+    std::vector<Index> boundaryNeighbors = _bNeighbors[i];
+    for (Index& j : boundaryNeighbors)
+        if (_bPosition[j] != _fPosition[i]) {
+            pos_ij = _fPosition[i] - _bPosition[j];
+            Dii[i] += (-_bDensity[j] / square(_fDensity[i])) * _kernel.gradW(pos_ij);
+        }
+
+    Dii[i] *= square(_dt);
 }
 
 void IISPHsolver::predictDensity(int i) {
-    Dadv[i] = _fDensity[i];
+    Dadv[i] = 0.0f;
     Vec2f pos_ij;
     Vec2f vel_adv_ij;
 
-    std::vector<Index> neighbors = _fNeighbors[i];
-    for (Index& j : neighbors)
+    std::vector<Index> fluidNeighbors = _fNeighbors[i];
+    for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
             vel_adv_ij = Vadv[i] - Vadv[j];
-            Dadv[i] += _dt * _m0 * vel_adv_ij.dotProduct(_kernel.gradW(pos_ij));
+            Dadv[i] += _m0 * vel_adv_ij.dotProduct(_kernel.gradW(pos_ij));
         }
+
+    std::vector<Index> boundaryNeighbors = _bNeighbors[i];
+    for (Index& j : boundaryNeighbors)
+        if (_bPosition[j] != _fPosition[i]) {
+            pos_ij = _fPosition[i] - _bPosition[j];
+            vel_adv_ij = Vadv[i];
+            Dadv[i] += _bDensity[j] * vel_adv_ij.dotProduct(_kernel.gradW(pos_ij));
+        }
+
+    Dadv[i] *= _dt;
+    Dadv[i] += _fDensity[i];
 }
 
 void IISPHsolver::initPressure(int i) {
@@ -428,12 +429,19 @@ void IISPHsolver::storeAii(int i) {
     Vec2f pos_ij;
     Vec2f d_ji;
 
-    std::vector<Index> neighbors = _fNeighbors[i];
-    for (Index& j : neighbors)
+    std::vector<Index> fluidNeighbors = _fNeighbors[i];
+    for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
-            d_ji = -(square(_dt) * _m0) / square(_fDensity[i]) * (-_kernel.gradW(pos_ij));
+            d_ji = -( square(_dt) * _m0 / square(_fDensity[i]) ) * (-_kernel.gradW(pos_ij));
             Aii[i] += _m0 * (Dii[i] - d_ji).dotProduct(_kernel.gradW(pos_ij));       
+        }
+
+    std::vector<Index> boundaryNeighbors = _bNeighbors[i];
+    for (Index& j : boundaryNeighbors)
+        if (_bPosition[j] != _fPosition[i]) {
+            pos_ij = _fPosition[i] - _bPosition[j];
+            Aii[i] += _bDensity[j] * Dii[i].dotProduct(_kernel.gradW(pos_ij));
         }
 }
 
@@ -442,32 +450,41 @@ void IISPHsolver::storeSumDijPj(int i) {
     sumDijPj[i].y = 0.0f;
     Vec2f pos_ij;
 
-    std::vector<Index> neighbors = _fNeighbors[i];
-    for (Index& j : neighbors)
+    std::vector<Index> fluidNeighbors = _fNeighbors[i];
+    for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
-            sumDijPj[i] += square(_dt) * (-_m0 / square(_fDensity[j])) * _fPressure[j] * _kernel.gradW(pos_ij);
+            sumDijPj[i] += -(_m0 * _fPressure[j] / square(_fDensity[j]) ) * _kernel.gradW(pos_ij);
         }
+
+    sumDijPj[i] *= square(_dt);
 }
 
 void IISPHsolver::computePressure(int i) {
-    Real  sum = 0.0f;
+    Dcorr[i] = 0.0f;
     Vec2f pos_ij;
     Vec2f d_ji;
     Vec2f aux;
 
-    std::vector<Index> neighbors = _fNeighbors[i];
-    for (Index& j : neighbors)
+    std::vector<Index> fluidNeighbors = _fNeighbors[i];
+    for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
-            d_ji = -(square(_dt) * _m0) / square(_fDensity[i]) * (-_kernel.gradW(pos_ij));
+            d_ji = -(square(_dt) * _m0 / square(_fDensity[i])) * (-_kernel.gradW(pos_ij));
             aux = sumDijPj[i] - Dii[j] * Pl[j] - (sumDijPj[j] - d_ji * Pl[i]);
-            sum += _m0 * aux.dotProduct(_kernel.gradW(pos_ij));
+            Dcorr[i] += _m0 * aux.dotProduct(_kernel.gradW(pos_ij));
         }
 
-    Real previousPl = Pl[i];
-    Dcorr[i] = Dadv[i] + sum;
+    std::vector<Index> boundaryNeighbors = _bNeighbors[i];
+    for (Index& j : boundaryNeighbors)
+        if (_bPosition[j] != _fPosition[i]) {
+            pos_ij = _fPosition[i] - _bPosition[j];
+            Dcorr[i] += _bDensity[j] * sumDijPj[i].dotProduct(_kernel.gradW(pos_ij));
+        }
 
+    Dcorr[i] += Dadv[i];
+
+    Real previousPl = Pl[i];
     if (std::abs(Aii[i]) > std::numeric_limits<Real>::epsilon())
         Pl[i] = (1 - _omega) * previousPl + (_omega / Aii[i]) * (_rho0 - Dcorr[i]);
     else
@@ -492,11 +509,18 @@ void IISPHsolver::computePressureForces(int i) {
     Fp[i].y = 0.0f;
     Vec2f pos_ij;
 
-    std::vector<Index> neighbors = _fNeighbors[i];
-    for (Index& j : neighbors)
+    std::vector<Index> fluidNeighbors = _fNeighbors[i];
+    for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
-            Fp[i] += - square(_m0) * (_fPressure[i] / square(_fDensity[i]) + _fPressure[j] / square(_fDensity[j])) * _kernel.gradW(pos_ij);
+            Fp[i] += - square(_m0) * (_fPressure[i] / square(_fDensity[i]) + _fPressure[j] / square(_fDensity[j]) ) * _kernel.gradW(pos_ij);
+        }
+
+    std::vector<Index> boundaryNeighbors = _bNeighbors[i];
+    for (Index& j : boundaryNeighbors)
+        if (_bPosition[j] != _fPosition[i]) {
+            pos_ij = _fPosition[i] - _bPosition[j];
+            Fp[i] += -_m0 * _bDensity[j] * (_fPressure[i] / square(_fDensity[i]) ) * _kernel.gradW(pos_ij);
         }
 }
 
@@ -550,14 +574,15 @@ void IISPHsolver::debugCrash(int i) {
         << "position     : " << _fPosition[i] << "\n"
         << "velocity     : " << _fVelocity[i] << "\n"
         << "pressure     : " << _fPressure[i] << "\n"
-        << "density      : " << _fDensity[i] << "\n"
-        << "F_p          : " << Fp[i] << "\n"
-        << "sum d_ij p_j : " << sumDijPj[i] << "\n"
-        << "a_ii         : " << Aii[i] << "\n"
-        << "rho_adv      : " << Dadv[i] << "\n"
-        << "d_ii         : " << Dii[i] << "\n"
-        << "v_adv        : " << Vadv[i] << "\n"
-        << "F_adv        : " << Fadv[i] << "\n"
+        << "density      : " << _fDensity[i]  << "\n"
+        << "F_p          : " << Fp[i]         << "\n"
+        << "rho_corr     : " << Dcorr[i]      << "\n"
+        << "sum d_ij p_j : " << sumDijPj[i]   << "\n"
+        << "a_ii         : " << Aii[i]        << "\n"
+        << "rho_adv      : " << Dadv[i]       << "\n"
+        << "d_ii         : " << Dii[i]        << "\n"
+        << "v_adv        : " << Vadv[i]       << "\n"
+        << "F_adv        : " << Fadv[i]       << "\n"
         << std::endl;
 
     std::cout << "neighbors : \n";
@@ -571,14 +596,15 @@ void IISPHsolver::debugCrash(int i) {
                 << "    position     : " << _fPosition[j] << "\n"
                 << "    velocity     : " << _fVelocity[j] << "\n"
                 << "    pressure     : " << _fPressure[j] << "\n"
-                << "    density      : " << _fDensity[j] << "\n"
-                << "    F_p          : " << Fp[j] << "\n"
-                << "    sum d_ij p_j : " << sumDijPj[j] << "\n"
-                << "    a_ii         : " << Aii[j] << "\n"
-                << "    rho_adv      : " << Dadv[j] << "\n"
-                << "    d_ii         : " << Dii[j] << "\n"
-                << "    v_adv        : " << Vadv[j] << "\n"
-                << "    F_adv        : " << Fadv[j] << "\n"
+                << "    density      : " << _fDensity[j]  << "\n"
+                << "    F_p          : " << Fp[j]         << "\n"
+                << "    rho_corr     : " << Dcorr[i]      << "\n"
+                << "    sum d_ij p_j : " << sumDijPj[j]   << "\n"
+                << "    a_ii         : " << Aii[j]        << "\n"
+                << "    rho_adv      : " << Dadv[j]       << "\n"
+                << "    d_ii         : " << Dii[j]        << "\n"
+                << "    v_adv        : " << Vadv[j]       << "\n"
+                << "    F_adv        : " << Fadv[j]       << "\n"
                 << "    gradient     : " << _kernel.gradW(pos_ij) << "\n"
                 << std::endl;
         }
