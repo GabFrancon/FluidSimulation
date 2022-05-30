@@ -5,6 +5,7 @@
 #include <glm/vec3.hpp>
 #include <glm/exponential.hpp>
 
+#include <vector>
 
 struct Cell {
     Cell(int _i, int _j) { x = _i; y = _j; }

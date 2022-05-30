@@ -1,4 +1,4 @@
-#include "wcsph_solver.h"
+#include "wcsph_solver2D.h"
 
 
 void WCSPHsolver::init(const int gridX, const int gridY, const int fluidWidth, const int fluidHeight) {

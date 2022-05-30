@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// vector.h
+// vector2.h
 //
 //  Created on: 22 Jan 2021
 //      Author: Kiwon Um
@@ -16,14 +16,13 @@
 // have been supplied.
 // ----------------------------------------------------------------------------
 
-#ifndef _VECTOR_H_
-#define _VECTOR_H_
+#pragma once
+
 
 // std
 #include <iostream>
 #include <sstream>
 #include <iomanip>
-#include <vector>
 
 
 typedef float Real;
@@ -203,5 +202,3 @@ typedef Vector2<Real> Vec2f;
 inline const Vec2f operator*(const Real s, const Vec2f &r) { return r*s; }
 
 typedef Vector2<int> Vec2i;
-
-#endif  /* _VECTOR_H_ */

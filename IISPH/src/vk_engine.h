@@ -7,10 +7,12 @@
 #include "vk_material.h"
 #include "vk_mesh.h"
 #include "vk_texture.h"
+#include "vk_camera.h"
 #include "vk_tools.h"
 
-#include "SPH/wcsph_solver.h"
-#include "SPH/iisph_solver.h"
+#include "SPH/wcsph_solver2D.h"
+#include "SPH/iisph_solver2D.h"
+#include "SPH/iisph_solver3D.h"
 
 
 
@@ -18,7 +20,7 @@
 static const uint32_t WIDTH  = 1920;
 static const uint32_t HEIGHT = 1080;
 
-static const int MAX_OBJECTS_RENDERED  = 5000;
+static const int MAX_OBJECTS_RENDERED  = 100000;
 static const int MAX_MATERIALS_CREATED = 10;
 static const int MAX_FRAMES_IN_FLIGHT  = 2;
 
@@ -38,40 +40,6 @@ struct RenderObject {
     Material* material;
     glm::mat4 modelMatrix;
     glm::vec3 albedoColor;
-};
-
-struct Camera {
-    glm::mat4 viewMatrix;
-    glm::mat4 projMatrix;
-
-    static glm::mat4 perspective(float fov, float aspect, float near, float far) {
-        float f = 1.0f / tan(0.5f * fov);
-
-        glm::mat4 perspectiveProjectionMatrix = {
-            f / aspect, 0.0f, 0.0f                       ,  0.0f,
-
-            0.0f      , -f  , 0.0f                       ,  0.0f,
-
-            0.0f      , 0.0f, far / (near - far)         , -1.0f,
-
-            0.0f      , 0.0f, (near * far) / (near - far),  0.0f
-        };
-
-        return perspectiveProjectionMatrix;
-    }
-    static glm::mat4 ortho(float left, float right, float bottom, float top, float near, float far) {
-        glm::mat4 orthographicProjectionMatrix = {
-            2.0f / (right - left)           , 0.0f                            , 0.0f               , 0.0f,
-
-            0.0f                            , 2.0f / (bottom - top)           , 0.0f               , 0.0f,
-
-            0.0f                            , 0.0f                            , 1.0f / (near - far), 0.0f,
-
-            -(right + left) / (right - left), -(bottom + top) / (bottom - top), near / (near - far), 1.0f
-        };
-
-        return orthographicProjectionMatrix;
-    }
 };
 
 
@@ -118,7 +86,9 @@ private:
     std::vector<RenderObject> renderables;
 
     // Logic
-    IISPHsolver solver;
+    IISPHsolver2D solver2D;
+    IISPHsolver3D solver3D;
+
     float appTimer         = 0.0f;
     float lastClockTime    = 0.0f;
     float currentClockTime = 0.0f;
@@ -139,6 +109,7 @@ private:
     void        createWindow();
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
     static void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void mouseCallback(GLFWwindow* window, double xpos, double ypos);
 
     // Vulkan core
     void initContext();
@@ -170,8 +141,10 @@ private:
     Material* getMaterial(const std::string& name);
 
     // Scene Rendering
-    void initScene();
-    void updateScene();
+    void initScene2D();
+    void initScene3D();
+    void updateScene2D();
+    void updateScene3D();
     void renderScene(VkCommandBuffer commandBuffer);
     void drawObjects(VkCommandBuffer commandBuffer, RenderObject* firstObject, int objectsCount);
     void drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount);

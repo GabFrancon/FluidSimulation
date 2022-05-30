@@ -1,9 +1,9 @@
-#include "iisph_solver.h"
+#include "iisph_solver2D.h"
 
 
 /*--------------------------------------------Main functions--------------------------------------------------*/
 
-void IISPHsolver::init(const int gridX, const int gridY, const int fluidWidth, const int fluidHeight) {
+void IISPHsolver2D::init(const int gridX, const int gridY, const int fluidWidth, const int fluidHeight) {
     // - init a fluid mass of size (fluidWidth, fluitHeight)
     // - create a grid of gridX * gridY cells starting from bottom left corner of the fluid
     // - each cell of the grid is sampled with 2x2 particles
@@ -19,19 +19,19 @@ void IISPHsolver::init(const int gridX, const int gridY, const int fluidWidth, c
     // sample boundaries
     _bPosition.clear();
     sampleBoundaryCube(0, 0, _resX, _resY);
+    //sampleBoundaryCube(30, 5, 40, 10);
     _boundaryCount = _bPosition.size();
     _bColor = std::vector<glm::vec3>(_boundaryCount, wallColor);
 
     // init other particle quantities
     _fDensity = std::vector<Real>(_fluidCount, 0);
-    _bDensity = std::vector<Real>(_boundaryCount, 0);
+    _fVelocity = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
+    _fPressure = std::vector<Real>(_fluidCount, 0);
 
     _fNeighbors = std::vector<std::vector<Index>>(_fluidCount, std::vector<Index>());
     _bNeighbors = std::vector<std::vector<Index>>(_fluidCount, std::vector<Index>());
 
-    _fVelocity = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
-    _fPressure = std::vector<Real>(_fluidCount, 0);
-
+    Psi      = std::vector<Real> (_boundaryCount, 0);
     Dii      = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
     Aii      = std::vector<Real> (_fluidCount, 0);
     sumDijPj = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
@@ -45,7 +45,7 @@ void IISPHsolver::init(const int gridX, const int gridY, const int fluidWidth, c
     initNeighbors();
 }
 
-void IISPHsolver::sampleFluidCube(int bottomX, int bottomY, int topX, int topY) {
+void IISPHsolver2D::sampleFluidCube(int bottomX, int bottomY, int topX, int topY) {
     for (int j = bottomY; j < topY; j++) {
         for (int i = bottomX; i < topX; i++) {
             _fPosition.push_back(Vec2f(i + 0.25, j + 0.25));
@@ -56,7 +56,7 @@ void IISPHsolver::sampleFluidCube(int bottomX, int bottomY, int topX, int topY) 
     }
 }
 
-void IISPHsolver::sampleBoundaryCube(int bottomX, int bottomY, int topX, int topY) {
+void IISPHsolver2D::sampleBoundaryCube(int bottomX, int bottomY, int topX, int topY) {
     for (int i = bottomX; i < topX; i++) {
         _bPosition.push_back(Vec2f(i + 0.25, bottomY + 0.25));
         _bPosition.push_back(Vec2f(i + 0.75, bottomY + 0.25));
@@ -83,7 +83,7 @@ void IISPHsolver::sampleBoundaryCube(int bottomX, int bottomY, int topX, int top
     }
 }
 
-void IISPHsolver::initNeighbors() {
+void IISPHsolver2D::initNeighbors() {
     _fGrid = std::vector<std::vector<Index>>(_resX * (size_t)_resY, std::vector<Index>());
     _bGrid = std::vector<std::vector<Index>>(_resX * (size_t)_resY, std::vector<Index>());
 
@@ -91,12 +91,10 @@ void IISPHsolver::initNeighbors() {
 
 #pragma omp parallel for
     for (int i = 0; i < _boundaryCount; i++)
-        computeBoundaryDensity(i);
-
-
+        computePsi(i);
 }
 
-void IISPHsolver::update() {
+void IISPHsolver2D::update() {
     updateNeighbors();
 
     predictAdvection();
@@ -104,9 +102,10 @@ void IISPHsolver::update() {
     integration();
 
     visualizeFluidDensity();
+    visualizeBoundaryDensity();
 }
 
-void IISPHsolver::updateNeighbors() {
+void IISPHsolver2D::updateNeighbors() {
     buildNeighborGrid();
 
 #pragma omp parallel for
@@ -114,7 +113,7 @@ void IISPHsolver::updateNeighbors() {
         findFluidNeighbors(i, 2 * _h);
 }
 
-void IISPHsolver::predictAdvection() {
+void IISPHsolver2D::predictAdvection() {
 #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++)
         computeDensity(i);
@@ -134,7 +133,7 @@ void IISPHsolver::predictAdvection() {
     }
 }
 
-void IISPHsolver::pressureSolve() {
+void IISPHsolver2D::pressureSolve() {
     int l = 0;
     _avgDensity = 0.0f;
 
@@ -153,7 +152,7 @@ void IISPHsolver::pressureSolve() {
     }
 }
 
-void IISPHsolver::integration() {
+void IISPHsolver2D::integration() {
 #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++)
         computePressureForces(i);
@@ -169,7 +168,7 @@ void IISPHsolver::integration() {
 
 /*-------------------------------------------Neighbor search------------------------------------------------*/
 
-void IISPHsolver::buildNeighborGrid() {
+void IISPHsolver2D::buildNeighborGrid() {
     for (auto& fIndices : _fGrid) {
         size_t lastFluidGridSize = fIndices.size();
         fIndices.clear();
@@ -189,7 +188,7 @@ void IISPHsolver::buildNeighborGrid() {
         fillBoundaryGrid(i);
 }
 
-void IISPHsolver::getNeighborCells(std::vector<Index>& neighbors, Vec2f particle, const int radius) {
+void IISPHsolver2D::getNeighborCells(std::vector<Index>& neighbors, Vec2f particle, const int radius) {
     if (!isInsideGrid(particle)) {
         neighbors.clear();
         return;
@@ -213,46 +212,46 @@ void IISPHsolver::getNeighborCells(std::vector<Index>& neighbors, Vec2f particle
         }
 }
 
-Index IISPHsolver::cellID(Vec2f particle) {
+Index IISPHsolver2D::cellID(Vec2f particle) {
     Vec2i cell = cellPos(particle);
     return cellID(cell.x, cell.y);
 }
 
-Index IISPHsolver::cellID(int i, int j) {
+Index IISPHsolver2D::cellID(int i, int j) {
     return i + j * _resX;
 }
 
-bool IISPHsolver::isInsideGrid(Vec2f particle) {
+bool IISPHsolver2D::isInsideGrid(Vec2f particle) {
     Index id = cellID(particle);
     return isInsideGrid(id);
 }
 
-bool IISPHsolver::isInsideGrid(int id) {
+bool IISPHsolver2D::isInsideGrid(int id) {
     return id >= 0 && id < _resX * _resY;
 }
 
-Vec2i IISPHsolver::cellPos(Vec2f particle) {
+Vec2i IISPHsolver2D::cellPos(Vec2f particle) {
     Vec2i cell;
     cell.x = std::floor(particle.x);
     cell.y = std::floor(particle.y);
     return cell;
 }
 
-void IISPHsolver::fillFluidGrid(int i) {
+void IISPHsolver2D::fillFluidGrid(int i) {
     int id = cellID(_fPosition[i]);
 
     if (isInsideGrid(id))
         _fGrid[id].push_back(i);
 }
 
-void IISPHsolver::fillBoundaryGrid(int i) {
+void IISPHsolver2D::fillBoundaryGrid(int i) {
     int id = cellID(_bPosition[i]);
 
     if (isInsideGrid(id))
         _bGrid[id].push_back(i);
 }
 
-void IISPHsolver::findFluidNeighbors(int i, const int radius) {
+void IISPHsolver2D::findFluidNeighbors(int i, const int radius) {
     size_t lastFluidSize = _fNeighbors[i].size();
     _fNeighbors[i].clear();
     _fNeighbors.reserve(lastFluidSize);
@@ -295,7 +294,7 @@ void IISPHsolver::findFluidNeighbors(int i, const int radius) {
     }
 }
 
-void IISPHsolver::findBoundaryNeighbors(std::vector< Index >& neighbors, int i, const int radius) {
+void IISPHsolver2D::findBoundaryNeighbors(std::vector< Index >& neighbors, int i, const int radius) {
     size_t lastSize = neighbors.size();
     neighbors.clear();
     neighbors.reserve(lastSize);
@@ -313,8 +312,8 @@ void IISPHsolver::findBoundaryNeighbors(std::vector< Index >& neighbors, int i, 
 
 /*------------------------------------------Fluid simulation-------------------------------------------------*/
 
-void IISPHsolver::computeBoundaryDensity(int i) {
-    _bDensity[i] = 0.0f;
+void IISPHsolver2D::computePsi(int i) {
+    Psi[i] = 0.0f;
     Vec2f pos_ij;
 
     std::vector<Index> boundaryNeighbors;
@@ -322,13 +321,13 @@ void IISPHsolver::computeBoundaryDensity(int i) {
 
     for (Index& j : boundaryNeighbors) {
         pos_ij = _bPosition[i] - _bPosition[j];
-        _bDensity[i] += _kernel.W(pos_ij);
+        Psi[i] += _kernel.W(pos_ij);
     }
 
-    _bDensity[i] = _rho0 / _bDensity[i];
+    Psi[i] = _rho0 / Psi[i];
 }
 
-void IISPHsolver::computeDensity(int i) {
+void IISPHsolver2D::computeDensity(int i) {
     _fDensity[i] = 0.0f;
     Vec2f pos_ij;
 
@@ -341,22 +340,22 @@ void IISPHsolver::computeDensity(int i) {
     std::vector<Index> boundaryNeighbors = _bNeighbors[i];
     for (Index& j : boundaryNeighbors) {
         pos_ij = _fPosition[i] - _bPosition[j];
-        _fDensity[i] += _bDensity[j] * _kernel.W(pos_ij);
+        _fDensity[i] += Psi[j] * _kernel.W(pos_ij);
     }
 }
 
-void IISPHsolver::computeAdvectionForces(int i) {
+void IISPHsolver2D::computeAdvectionForces(int i) {
     Fadv[i].x = 0.0f;
     Fadv[i].y = 0.0f;
     addBodyForce(i);
     addViscousForce(i);
 }
 
-void IISPHsolver::addBodyForce(int i) {
+void IISPHsolver2D::addBodyForce(int i) {
     Fadv[i] += _m0 * _g;
 }
 
-void IISPHsolver::addViscousForce(int i) {
+void IISPHsolver2D::addViscousForce(int i) {
     Vec2f pos_ij;
     Vec2f vel_ij;
 
@@ -369,11 +368,11 @@ void IISPHsolver::addViscousForce(int i) {
         }
 }
 
-void IISPHsolver::predictVelocity(int i) {
+void IISPHsolver2D::predictVelocity(int i) {
     Vadv[i] = _fVelocity[i] + _dt * Fadv[i] / _m0;
 }
 
-void IISPHsolver::storeDii(int i) {
+void IISPHsolver2D::storeDii(int i) {
     Dii[i].x = 0.0f;
     Dii[i].y = 0.0f;
     Vec2f pos_ij;
@@ -389,13 +388,13 @@ void IISPHsolver::storeDii(int i) {
     for (Index& j : boundaryNeighbors)
         if (_bPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _bPosition[j];
-            Dii[i] += (-_bDensity[j] / square(_fDensity[i])) * _kernel.gradW(pos_ij);
+            Dii[i] += (-Psi[j] / square(_fDensity[i])) * _kernel.gradW(pos_ij);
         }
 
     Dii[i] *= square(_dt);
 }
 
-void IISPHsolver::predictDensity(int i) {
+void IISPHsolver2D::predictDensity(int i) {
     Dadv[i] = 0.0f;
     Vec2f pos_ij;
     Vec2f vel_adv_ij;
@@ -413,18 +412,18 @@ void IISPHsolver::predictDensity(int i) {
         if (_bPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _bPosition[j];
             vel_adv_ij = Vadv[i];
-            Dadv[i] += _bDensity[j] * vel_adv_ij.dotProduct(_kernel.gradW(pos_ij));
+            Dadv[i] += Psi[j] * vel_adv_ij.dotProduct(_kernel.gradW(pos_ij));
         }
 
     Dadv[i] *= _dt;
     Dadv[i] += _fDensity[i];
 }
 
-void IISPHsolver::initPressure(int i) {
+void IISPHsolver2D::initPressure(int i) {
     Pl[i] = 0.5f * _fPressure[i];
 }
 
-void IISPHsolver::storeAii(int i) {
+void IISPHsolver2D::storeAii(int i) {
     Aii[i] = 0.0f;
     Vec2f pos_ij;
     Vec2f d_ji;
@@ -441,11 +440,11 @@ void IISPHsolver::storeAii(int i) {
     for (Index& j : boundaryNeighbors)
         if (_bPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _bPosition[j];
-            Aii[i] += _bDensity[j] * Dii[i].dotProduct(_kernel.gradW(pos_ij));
+            Aii[i] += Psi[j] * Dii[i].dotProduct(_kernel.gradW(pos_ij));
         }
 }
 
-void IISPHsolver::storeSumDijPj(int i) {
+void IISPHsolver2D::storeSumDijPj(int i) {
     sumDijPj[i].x = 0.0f;
     sumDijPj[i].y = 0.0f;
     Vec2f pos_ij;
@@ -460,7 +459,7 @@ void IISPHsolver::storeSumDijPj(int i) {
     sumDijPj[i] *= square(_dt);
 }
 
-void IISPHsolver::computePressure(int i) {
+void IISPHsolver2D::computePressure(int i) {
     Dcorr[i] = 0.0f;
     Vec2f pos_ij;
     Vec2f d_ji;
@@ -479,7 +478,7 @@ void IISPHsolver::computePressure(int i) {
     for (Index& j : boundaryNeighbors)
         if (_bPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _bPosition[j];
-            Dcorr[i] += _bDensity[j] * sumDijPj[i].dotProduct(_kernel.gradW(pos_ij));
+            Dcorr[i] += Psi[j] * sumDijPj[i].dotProduct(_kernel.gradW(pos_ij));
         }
 
     Dcorr[i] += Dadv[i];
@@ -495,7 +494,7 @@ void IISPHsolver::computePressure(int i) {
     Dcorr[i] += Aii[i] * previousPl;
 }
 
-void IISPHsolver::computeError()
+void IISPHsolver2D::computeError()
 {
     _avgDensity = 0.0;
     for (int i = 0; i < _fluidCount; i++)
@@ -504,7 +503,7 @@ void IISPHsolver::computeError()
     _avgDensity /= _fPosition.size();
 }
 
-void IISPHsolver::computePressureForces(int i) {
+void IISPHsolver2D::computePressureForces(int i) {
     Fp[i].x = 0.0f;
     Fp[i].y = 0.0f;
     Vec2f pos_ij;
@@ -520,15 +519,15 @@ void IISPHsolver::computePressureForces(int i) {
     for (Index& j : boundaryNeighbors)
         if (_bPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _bPosition[j];
-            Fp[i] += -_m0 * _bDensity[j] * (_fPressure[i] / square(_fDensity[i]) ) * _kernel.gradW(pos_ij);
+            Fp[i] += -_m0 * Psi[j] * (_fPressure[i] / square(_fDensity[i]) ) * _kernel.gradW(pos_ij);
         }
 }
 
-void IISPHsolver::updateVelocity(int i) {
+void IISPHsolver2D::updateVelocity(int i) {
     _fVelocity[i] = Vadv[i] + _dt * Fp[i] / _m0;
 }
 
-void IISPHsolver::updatePosition(int i) {
+void IISPHsolver2D::updatePosition(int i) {
 
     if (isInsideGrid(_fPosition[i] + _dt * _fVelocity[i]) )
         _fPosition[i] += _dt * _fVelocity[i];
@@ -540,7 +539,7 @@ void IISPHsolver::updatePosition(int i) {
 
 /*----------------------------------------Debug / visualization-----------------------------------------------*/
 
-void IISPHsolver::visualizeFluidDensity() {
+void IISPHsolver2D::visualizeFluidDensity() {
     for (Index i = 0; i < _fluidCount; i++) {
         _fColor[i].x = lightColor.x + (_fDensity[i] / _rho0) * (denseColor.x - lightColor.x);
         _fColor[i].y = lightColor.y + (_fDensity[i] / _rho0) * (denseColor.y - lightColor.y);
@@ -550,15 +549,15 @@ void IISPHsolver::visualizeFluidDensity() {
         _bColor[i] = wallColor;
 }
 
-void IISPHsolver::visualizeBoundaryDensity() {
+void IISPHsolver2D::visualizeBoundaryDensity() {
     for (Index i = 0; i < _boundaryCount; i++) {
-        _bColor[i].x = lightColor.x + (_bDensity[i] / _rho0) * (wallColor.x - lightColor.x);
-        _bColor[i].y = lightColor.y + (_bDensity[i] / _rho0) * (wallColor.y - lightColor.y);
-        _bColor[i].z = lightColor.z + (_bDensity[i] / _rho0) * (wallColor.z - lightColor.z);
+        _bColor[i].x = lightColor.x + (Psi[i] / _rho0) * (wallColor.x - lightColor.x);
+        _bColor[i].y = lightColor.y + (Psi[i] / _rho0) * (wallColor.y - lightColor.y);
+        _bColor[i].z = lightColor.z + (Psi[i] / _rho0) * (wallColor.z - lightColor.z);
     }
 }
 
-void IISPHsolver::viualizeFluidNeighbors(int i) {
+void IISPHsolver2D::viualizeFluidNeighbors(int i) {
 
     for (int j = 0; j < _fNeighbors[i].size(); j++)
         _fColor[_fNeighbors[i][j]] = greenColor;
@@ -569,7 +568,7 @@ void IISPHsolver::viualizeFluidNeighbors(int i) {
     _fColor[i] = redColor;
 }
 
-void IISPHsolver::debugCrash(int i) {
+void IISPHsolver2D::debugCrash(int i) {
     std::cout
         << "position     : " << _fPosition[i] << "\n"
         << "velocity     : " << _fVelocity[i] << "\n"
