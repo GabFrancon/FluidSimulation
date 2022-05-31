@@ -20,12 +20,15 @@
 static const uint32_t WIDTH  = 1920;
 static const uint32_t HEIGHT = 1080;
 
-static const int MAX_OBJECTS_RENDERED  = 100000;
+static const int MAX_OBJECTS_RENDERED  = 50000;
 static const int MAX_MATERIALS_CREATED = 10;
 static const int MAX_FRAMES_IN_FLIGHT  = 2;
 
 static const std::string SPHERE_MODEL_PATH  = "assets/models/sphere.obj";
+static const std::string CUBE_MODEL_PATH    = "assets/models/cube.obj";
+
 static const std::string WATER_TEXTURE_PATH = "assets/textures/water.jpg";
+static const std::string GLASS_TEXTURE_PATH = "assets/textures/glass.jpg";
 
 static const std::string BASIC_VERT_SHADER_PATH     = "shaders/basic_vert.spv";
 static const std::string INSTANCED_VERT_SHADER_PATH = "shaders/instanced_vert.spv";
@@ -34,6 +37,11 @@ static const std::string TEXTURED_FRAG_SHADER_PATH  = "shaders/textured_frag.spv
 
 
 // struct definitions
+
+struct SceneInfo {
+    glm::vec3 lightPosition;
+    glm::vec3 lightColor;
+};
 
 struct RenderObject {
     Mesh* mesh;
@@ -82,6 +90,7 @@ private:
     std::unordered_map<std::string, Material> materials;
 
     // Scene objects
+    SceneInfo sceneInfo;
     Camera camera;
     std::vector<RenderObject> renderables;
 
@@ -98,6 +107,7 @@ private:
     bool recordingModeOn    = false;
     bool framebufferResized = false;
     bool wireframeViewOn    = false;
+    bool panoramaViewOn     = true;
 
 
 
@@ -128,6 +138,7 @@ private:
     void createDescriptorLayouts();
     void initDescriptors();
     void mapCameraData();
+    void mapSceneData();
     void mapObjectsData();
 
     // Assets
@@ -146,7 +157,7 @@ private:
     void updateScene2D();
     void updateScene3D();
     void renderScene(VkCommandBuffer commandBuffer);
-    void drawObjects(VkCommandBuffer commandBuffer, RenderObject* firstObject, int objectsCount);
+    void drawSingleObject(VkCommandBuffer commandBuffer, int i);
     void drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount);
 
     // Exportation

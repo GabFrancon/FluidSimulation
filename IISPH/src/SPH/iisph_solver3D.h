@@ -52,6 +52,10 @@ public:
     const inline int resY() const { return _resY; }
     const inline int resZ() const { return _resZ; }
 
+    const inline glm::vec3 center() const { return glm::vec3(_resX, _resY, _resZ) / 2.0f; }
+
+    const inline glm::vec3 getWallColor() const { return wallColor; }
+
 
 private:
     /*--------------------------------------------Main functions--------------------------------------------------*/
@@ -146,8 +150,8 @@ private:
 
     // visualization
     glm::vec3 wallColor  = { 195 / 255.0f,  50 / 255.0f,  30 / 255.0f };
-    glm::vec3 lightColor = { 213 / 255.0f, 240 / 255.0f, 255 / 255.0f };
-    glm::vec3 denseColor = {  30 / 255.0f,  73 / 255.0f, 190 / 255.0f };
+    glm::vec3 lightColor = {  79 / 255.0f, 132 / 255.0f, 237 / 255.0f };
+    glm::vec3 denseColor = {  10 / 255.0f,  47 / 255.0f, 119 / 255.0f };
     glm::vec3 redColor   = { 255 / 255.0f,   0 / 255.0f,   0 / 255.0f };
     glm::vec3 greenColor = {   0 / 255.0f, 255 / 255.0f,   0 / 255.0f };
     glm::vec3 pinkColor  = { 255 / 255.0f,   0 / 255.0f, 255 / 255.0f };

@@ -35,6 +35,7 @@ void VulkanEngine::update() {
     updateScene3D();
 
     mapCameraData();
+    mapSceneData();
     mapObjectsData();
 }
 
@@ -200,12 +201,12 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
     }
     else if (key == GLFW_KEY_T && action == GLFW_PRESS) {
         engine->appTimerStopped = !engine->appTimerStopped;
-
-        if (!engine->appTimerStopped)
-            engine->lastClockTime = static_cast<float>(glfwGetTime());
     }
     else if (key == GLFW_KEY_R && action == GLFW_PRESS) {
         engine->recordingModeOn = !engine->recordingModeOn;
+    }
+    else if (key == GLFW_KEY_P && action == GLFW_PRESS) {
+        engine->panoramaViewOn = !engine->panoramaViewOn;
     }
     else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
@@ -215,6 +216,7 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
             << "        V ---> activate/deactivate wireframe view\n"
             << "        T ---> start/stop the timer\n"
             << "        R ---> activate/deactivate recording mode\n"
+            << "        P ---> activate/deactivate panorama view\n"
             << "        H ---> get help for hot keys\n"
             << "        ESC -> close window\n"
             << std::endl;
@@ -235,6 +237,8 @@ void VulkanEngine::mouseCallback(GLFWwindow* window, double xpos, double ypos)
 
     auto engine = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
     engine->camera.processMouseMovement(xpos - lastX, lastY - ypos);
+    engine->panoramaViewOn = false;
+    engine->appTimerStopped = true;
 
     lastX = xpos;
     lastY = ypos;
@@ -400,7 +404,7 @@ void VulkanEngine::createFramebuffers() {
 void VulkanEngine::createDescriptorPool() {
 
     std::vector<VkDescriptorPoolSize> poolSizes = {
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) },     // nb of UBO  * MAX_FRAMES_IN_FLIGHT
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) },     // nb of UBO  * MAX_FRAMES_IN_FLIGHT
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) },     // nb of SSBO * MAX_FRAMES_IN_FLIGHT
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(MAX_MATERIALS_CREATED) } // MAX_MATERIALS_CREATED
     };
@@ -422,18 +426,26 @@ void VulkanEngine::createDescriptorLayouts() {
     cameraLayoutBinding.binding = 0;
     cameraLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     cameraLayoutBinding.descriptorCount = 1;
-    cameraLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    cameraLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutBinding sceneLayoutBinding{};
+    sceneLayoutBinding.binding = 1;
+    sceneLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    sceneLayoutBinding.descriptorCount = 1;
+    sceneLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 2> globalBindings = { cameraLayoutBinding, sceneLayoutBinding };
 
     VkDescriptorSetLayoutCreateInfo globalLayoutInfo{};
     globalLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    globalLayoutInfo.bindingCount = 1;
-    globalLayoutInfo.pBindings = &cameraLayoutBinding;
+    globalLayoutInfo.bindingCount = globalBindings.size();
+    globalLayoutInfo.pBindings = globalBindings.data();
 
     if (vkCreateDescriptorSetLayout(context.device, &globalLayoutInfo, nullptr, &globalSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create descriptor set layout!");
+        throw std::runtime_error("failed to create global descriptor set layout!");
     }
 
-    // object set layout
+    // objects set layout
     VkDescriptorSetLayoutBinding objectsLayoutBinding{};
     objectsLayoutBinding.binding = 0;
     objectsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -446,7 +458,7 @@ void VulkanEngine::createDescriptorLayouts() {
     objectsLayoutInfo.pBindings = &objectsLayoutBinding;
 
     if (vkCreateDescriptorSetLayout(context.device, &objectsLayoutInfo, nullptr, &objectsSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create descriptor set layout!");
+        throw std::runtime_error("failed to create objects descriptor set layout!");
     }
 
     // texture set layout
@@ -482,11 +494,23 @@ void VulkanEngine::mapCameraData() {
     CameraData cameraData{};
     cameraData.view = camera.viewMatrix;
     cameraData.proj = camera.projMatrix;
+    cameraData.position = camera.camPos;
 
     void* data;
     vkMapMemory(context.device, descriptors[currentFrame].cameraBuffer.allocation, 0, sizeof(CameraData), 0, &data);
     memcpy(data, &cameraData, sizeof(CameraData));
     vkUnmapMemory(context.device, descriptors[currentFrame].cameraBuffer.allocation);
+}
+
+void VulkanEngine::mapSceneData() {
+    SceneData sceneData{};
+    sceneData.lightPosition = sceneInfo.lightPosition;
+    sceneData.lightColor    = sceneInfo.lightColor;;
+
+    void* data;
+    vkMapMemory(context.device, descriptors[currentFrame].sceneBuffer.allocation, 0, sizeof(SceneData), 0, &data);
+    memcpy(data, &sceneData, sizeof(SceneData));
+    vkUnmapMemory(context.device, descriptors[currentFrame].sceneBuffer.allocation);
 }
 
 void VulkanEngine::mapObjectsData() {
@@ -508,23 +532,50 @@ void VulkanEngine::mapObjectsData() {
 // Assets
 void VulkanEngine::initAssets() {
     loadTextures();
-    createMaterial("water"    , getTexture("water"), VulkanPipeline(&context, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL));
-    createMaterial("wireframe", getTexture("water"), VulkanPipeline(&context, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE));
+    createMaterial("water"              , getTexture("water"), VulkanPipeline(&context, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH , VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT));
+    createMaterial("water_wireframe"    , getTexture("water"), VulkanPipeline(&context, INSTANCED_VERT_SHADER_PATH, COLORED_FRAG_SHADER_PATH , VK_POLYGON_MODE_LINE, VK_CULL_MODE_BACK_BIT));
+    createMaterial("back_container"     , getTexture("glass"), VulkanPipeline(&context, BASIC_VERT_SHADER_PATH    , TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL, VK_CULL_MODE_FRONT_BIT));
+    createMaterial("front_container"    , getTexture("glass"), VulkanPipeline(&context, BASIC_VERT_SHADER_PATH    , COLORED_FRAG_SHADER_PATH , VK_POLYGON_MODE_LINE, VK_CULL_MODE_BACK_BIT));
 
     loadMeshes();
     getMesh("sphere")->upload(commandPool);
+    getMesh("cube")->upload(commandPool);
 }
 
 void VulkanEngine::loadTextures() {
     Texture waterTex{ &context };
     waterTex.loadFromFile(commandPool, WATER_TEXTURE_PATH.c_str());
     textures["water"] = waterTex;
+
+    Texture glassTex{ &context };
+    glassTex.loadFromFile(commandPool, GLASS_TEXTURE_PATH.c_str());
+    textures["glass"] = glassTex;
 }
 
 void VulkanEngine::loadMeshes() {
     Mesh sphereMesh{ &context };
     sphereMesh.loadFromObj(SPHERE_MODEL_PATH.c_str());
     meshes["sphere"] = sphereMesh;
+
+    Mesh cube{ &context };
+    cube.loadFromObj(CUBE_MODEL_PATH.c_str());
+    meshes["cube"] = cube;
+    /*
+    std::vector<Mesh> faces = std::vector<Mesh>(6, Mesh( &context ));
+    for (int i = 0; i < 6; i++)
+        faces[i].vertices = cube.vertices;
+
+    for (int i = 0; i < 12; i++)
+        for (int j = 0; j < 3; j++) {
+            faces[i % 6].indices.push_back(cube.indices[3 * (size_t)i + j]);
+        }
+
+    meshes["bottom"] = faces[0];
+    meshes["top"] = faces[1];
+    meshes["right"] = faces[2];
+    meshes["front"] = faces[3];
+    meshes["left"] = faces[4];
+    meshes["back"] = faces[5];*/
 }
 
 void VulkanEngine::createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline) {    
@@ -538,12 +589,12 @@ void VulkanEngine::switchViewMode() {
     Material* material;
 
     if (wireframeViewOn)
-        material = getMaterial("wireframe");
+        material = getMaterial("water_wireframe");
     else
         material = getMaterial("water");
 
-    for (RenderObject& object : renderables)
-        object.material = material;
+    for (int i=0; i < renderables.size() - 2; i++)
+        renderables[i].material = material;
 }
 
 Texture* VulkanEngine::getTexture(const std::string& name)
@@ -636,7 +687,12 @@ void VulkanEngine::initScene2D() {
 void VulkanEngine::initScene3D() {
     // init SPH logic
     solver3D = IISPHsolver3D();
-    solver3D.init(20, 20, 20, 12, 12, 12);
+    solver3D.init(35, 25, 35, 18, 14, 18);
+
+    // init scene
+    sceneInfo = SceneInfo();
+    sceneInfo.lightPosition = glm::vec3(30.0f);
+    sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
     camera = Camera(glm::vec3(10.0f, 10.0f, 50.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -659,27 +715,34 @@ void VulkanEngine::initScene3D() {
 
         renderables.push_back(fluidParticle);
     }
-    /*
-    // create boundary particles
-    for (int i = 0; i < solver3D.boundaryCount(); i++) {
-        Vec3f p = solver3D.boundaryPosition(i);
-        glm::vec3 position = glm::vec3(p.x, p.y, p.z);
-        glm::vec3 size = glm::vec3(0.1f);
-        glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
-        float angle = 0.0f;
-
-        RenderObject boundaryParticle{};
-        boundaryParticle.mesh = getMesh("sphere");
-        boundaryParticle.material = getMaterial("water");
-        boundaryParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-        boundaryParticle.albedoColor = solver3D.boundaryColor(i);
-
-        renderables.push_back(boundaryParticle);
-    }*/
+    
     std::cout
         << "number of fluid particles    : " << solver3D.fluidCount() << "\n"
         << "number of boundary particles : " << solver3D.boundaryCount() << "\n"
         << std::endl;
+
+    // create container
+    glm::vec3 position     = solver3D.center();
+    glm::vec3 size         = solver3D.center() - 1.0f;
+    glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
+    float angle            = 0.0f;
+
+
+    RenderObject backContainer{};
+    backContainer.mesh = getMesh("cube");
+    backContainer.material = getMaterial("back_container");
+    backContainer.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+    backContainer.albedoColor = solver3D.getWallColor();
+
+    renderables.push_back(backContainer);
+
+    RenderObject frontContainer{};
+    frontContainer.mesh = getMesh("cube");
+    frontContainer.material = getMaterial("front_container");
+    frontContainer.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+    frontContainer.albedoColor = solver3D.getWallColor();
+
+    renderables.push_back(frontContainer);
 }
 
 void VulkanEngine::updateScene2D() {
@@ -731,23 +794,28 @@ void VulkanEngine::updateScene2D() {
 }
 
 void VulkanEngine::updateScene3D() {
+    currentClockTime = static_cast<float>(glfwGetTime());
+    const float dt = currentClockTime - lastClockTime;
+    lastClockTime = currentClockTime;
+
+    // update scene
+    static float time = 0.0f;
+    time += 0.02;
+    sceneInfo.lightPosition.x = glm::sin(2 * M_PI * time / 60.0f) * 30.0f;
+    sceneInfo.lightPosition.z = glm::cos(2 * M_PI * time / 60.0f) * 30.0f;
+
     // update camera
-    static float lastTime = 0.0f;
-    float currentTime = static_cast<float>(glfwGetTime());
-    camera.processKeyboardInput(window, currentTime - lastTime);
-    lastTime = currentTime;
-    camera.updateViewMatrix();
+    if(panoramaViewOn)
+        camera.panoramaView(solver3D.center(), (solver3D.resX() + solver3D.resZ()) * 0.9f, solver3D.resY(), 60.0f, dt);
+    else
+        camera.processKeyboardInput(window, dt);
     
     if (!appTimerStopped) {
-        currentClockTime = static_cast<float>(glfwGetTime());
-        const float dt = currentClockTime - lastClockTime;
-        lastClockTime = currentClockTime;
         appTimer += dt;
 
         //compute SPH logic
-        for (int i = 0; i < 1; i++)
-            solver3D.update();
-
+        solver3D.update();
+            
         // update fluid particles
         for (int i = 0; i < solver3D.fluidCount(); i++) {
             Vec3f p = solver3D.fluidPosition(i);
@@ -759,52 +827,42 @@ void VulkanEngine::updateScene3D() {
             renderables[i].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
             renderables[i].albedoColor = solver3D.fluidColor(i);
         }
-        /*
-        // update boundary particles
-        for (int i = 0; i < solver3D.boundaryCount(); i++) {
-            Vec3f p = solver3D.boundaryPosition(i);
-            glm::vec3 position = glm::vec3(p.x, p.y, p.z);
-            glm::vec3 size = glm::vec3(0.1f);
-            glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
-            float angle = 0.0f;
-
-            renderables[i + solver3D.fluidCount()].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-            renderables[i + solver3D.fluidCount()].albedoColor = solver3D.boundaryColor(i);
-        }*/
     }
 }
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
-    //drawObjects(commandBuffer, renderables.data(), renderables.size());
-    drawInstanced(commandBuffer, renderables[0], solver3D.fluidCount());
+    /*for (int i = 0; i < renderables.size(); i++) {
+        drawSingleObject(commandBuffer, i);
+    }*/
+
+    drawSingleObject(commandBuffer, renderables.size() - 2); // back
+    drawInstanced(commandBuffer, renderables[0], renderables.size() - 2);
+    drawSingleObject(commandBuffer, renderables.size() - 1); // front
 
     if(recordingModeOn && !appTimerStopped)
         savesFrames();
 }
 
-void VulkanEngine::drawObjects(VkCommandBuffer commandBuffer, RenderObject* firstObject, int objectsCount) {
+void VulkanEngine::drawSingleObject(VkCommandBuffer commandBuffer, int i) {
+    RenderObject& object = renderables[i];
 
-    for (int i = 0; i < objectsCount; i++) {
-        RenderObject& object = firstObject[i];
+    // bind shader pipeline
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.vkPipeline);
 
-        // bind shader pipeline
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.vkPipeline);
+    // bind global uniform resources
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 0, 1, &descriptors[currentFrame].globalDescriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 1, 1, &descriptors[currentFrame].objectsDescriptorSet, 0, nullptr);
 
-        // bind global uniform resources
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 0, 1, &descriptors[currentFrame].globalDescriptorSet, 0, nullptr);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 1, 1, &descriptors[currentFrame].objectsDescriptorSet, 0, nullptr);
-        
-        // bind object resources
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 2, 1, &object.material->textureDescriptor, 0, nullptr);
+    // bind object resources
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 2, 1, &object.material->textureDescriptor, 0, nullptr);
 
-        // bind vertices
-        VkDeviceSize offset = 0;
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &object.mesh->vertexBuffer.buffer, &offset);
-        vkCmdBindIndexBuffer(commandBuffer, object.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    // bind vertices
+    VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &object.mesh->vertexBuffer.buffer, &offset);
+    vkCmdBindIndexBuffer(commandBuffer, object.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
-        // draw object
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object.mesh->indices.size()), 1, 0, 0, i);
-    }
+    // draw object
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object.mesh->indices.size()), 1, 0, 0, i);
 }
 
 void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount) {

@@ -15,13 +15,16 @@ public:
 
     std::vector<char> vertexShader;
     std::vector<char> fragmentShader;
-    VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL;
+    VkPolygonMode polygonMode;
+    VkCullModeFlags cullMode;
 
     VulkanPipeline(){}
-    VulkanPipeline(VulkanContext* vulkanContext, const std::string& vertexPath, const std::string& fragmentPath, VkPolygonMode mode) {
-        context = vulkanContext;
-        polygonMode = mode;
-        vertexShader = readFile(vertexPath);
+    VulkanPipeline(VulkanContext* vulkanContext, const std::string& vertexPath, const std::string& fragmentPath, VkPolygonMode _polygonMode = VK_POLYGON_MODE_FILL, VkCullModeFlags _cullMode = VK_CULL_MODE_BACK_BIT) {
+        context     = vulkanContext;
+        polygonMode = _polygonMode;
+        cullMode    = _cullMode;
+
+        vertexShader   = readFile(vertexPath);
         fragmentShader = readFile(fragmentPath);
     }
 

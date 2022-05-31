@@ -20,15 +20,21 @@ void Mesh::loadFromObj(const char* filepath) {
         for (const auto& index : shape.mesh.indices) {
             Vertex vertex{};
 
-            vertex.pos = {
-                attrib.vertices[3 * index.vertex_index + 0],
-                attrib.vertices[3 * index.vertex_index + 1],
-                attrib.vertices[3 * index.vertex_index + 2]
+            vertex.position = {
+                attrib.vertices[3 * (size_t)index.vertex_index + 0],
+                attrib.vertices[3 * (size_t)index.vertex_index + 1],
+                attrib.vertices[3 * (size_t)index.vertex_index + 2]
+            };
+
+            vertex.normal = {
+                attrib.normals[3 * (size_t)index.normal_index + 0],
+                attrib.normals[3 * (size_t)index.normal_index + 1],
+                attrib.normals[3 * (size_t)index.normal_index + 2]
             };
 
             vertex.texCoord = {
-                attrib.texcoords[2 * index.texcoord_index + 0],
-                1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+                attrib.texcoords[2 * (size_t)index.texcoord_index + 0],
+                1.0f - attrib.texcoords[2 * (size_t)index.texcoord_index + 1]
             };
 
             if (uniqueVertices.count(vertex) == 0) {

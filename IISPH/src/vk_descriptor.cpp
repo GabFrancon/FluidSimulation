@@ -2,8 +2,11 @@
 
 
 void VulkanDescriptor::createBuffers() {
-	VkDeviceSize cameraBufferSize = sizeof(CameraData);
-	cameraBuffer = context->createBuffer(cameraBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    VkDeviceSize cameraBufferSize = sizeof(CameraData);
+    cameraBuffer = context->createBuffer(cameraBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    VkDeviceSize sceneBufferSize = sizeof(SceneData);
+    sceneBuffer = context->createBuffer(sceneBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     VkDeviceSize objectsBufferSize = sizeof(ObjectData) * maxObjectsToRender;
 	objectsBuffer = context->createBuffer(objectsBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -34,7 +37,7 @@ void VulkanDescriptor::allocateObjectsDescriptorSet(VkDescriptorPool descriptorP
 }
 
 void VulkanDescriptor::updateDescriptors() {
-    std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+    std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 
     VkDescriptorBufferInfo cameraBufferInfo{};
     cameraBufferInfo.buffer = cameraBuffer.buffer;
@@ -50,23 +53,38 @@ void VulkanDescriptor::updateDescriptors() {
     descriptorWrites[0].pBufferInfo = &cameraBufferInfo;
 
 
+    VkDescriptorBufferInfo sceneBufferInfo{};
+    sceneBufferInfo.buffer = sceneBuffer.buffer;
+    sceneBufferInfo.offset = 0;
+    sceneBufferInfo.range = sizeof(SceneData);
+
+    descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[1].dstSet = globalDescriptorSet;
+    descriptorWrites[1].dstBinding = 1;
+    descriptorWrites[1].dstArrayElement = 0;
+    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorWrites[1].descriptorCount = 1;
+    descriptorWrites[1].pBufferInfo = &sceneBufferInfo;
+
+
     VkDescriptorBufferInfo objectsBufferInfo{};
     objectsBufferInfo.buffer = objectsBuffer.buffer;
     objectsBufferInfo.offset = 0;
     objectsBufferInfo.range = sizeof(ObjectData) * maxObjectsToRender;
 
-    descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrites[1].dstSet = objectsDescriptorSet;
-    descriptorWrites[1].dstBinding = 0;
-    descriptorWrites[1].dstArrayElement = 0;
-    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    descriptorWrites[1].descriptorCount = 1;
-    descriptorWrites[1].pBufferInfo = &objectsBufferInfo;
+    descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[2].dstSet = objectsDescriptorSet;
+    descriptorWrites[2].dstBinding = 0;
+    descriptorWrites[2].dstArrayElement = 0;
+    descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrites[2].descriptorCount = 1;
+    descriptorWrites[2].pBufferInfo = &objectsBufferInfo;
 
     vkUpdateDescriptorSets(context->device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 }
 
 void VulkanDescriptor::destroy() {
     cameraBuffer.destroy(context->device);
+    sceneBuffer.destroy(context->device);
     objectsBuffer.destroy(context->device);
 }

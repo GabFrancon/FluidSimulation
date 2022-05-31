@@ -6,17 +6,21 @@
 #include <glm/glm.hpp>
 
 
-struct ObjectData {
-    alignas(16) glm::mat4 model;
-    alignas(16) glm::vec3 albedo;
+struct SceneData {
+    alignas(16) glm::vec3 lightPosition;
+    alignas(16) glm::vec3 lightColor;
 };
 
 struct CameraData {
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
+    alignas(16) glm::vec3 position;
 };
 
-
+struct ObjectData {
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::vec3 albedo;
+};
 
 class VulkanDescriptor
 {
@@ -26,6 +30,7 @@ public:
 
     VkDescriptorSet globalDescriptorSet;
     AllocatedBuffer cameraBuffer;
+    AllocatedBuffer sceneBuffer;
 
     VkDescriptorSet objectsDescriptorSet;
     AllocatedBuffer objectsBuffer;
