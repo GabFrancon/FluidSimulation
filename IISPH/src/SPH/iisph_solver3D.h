@@ -14,20 +14,20 @@ class IISPHsolver3D
 {
 public:
     explicit IISPHsolver3D(
-        const Real h = 0.5f,      // particle spacing
-        const Real rho0 = 1e3f,   // rest density
-        const Real nu = 0.08f,    // kinematic viscosity
-        const Real eta = 0.01f)   // compressibility
+        const Real h    = 0.5f,    // particle spacing
+        const Real rho0 = 1e3f,    // rest density
+        const Real nu   = 0.08f,   // kinematic viscosity
+        const Real eta  = 0.01f)   // compressibility
     {
         // fluid properties
-        _h = h;
+        _h    = h;
         _rho0 = rho0;
-        _nu = nu;
-        _eta = eta;
+        _nu   = nu;
+        _eta  = eta;
 
         // fixed constants
-        _dt = 0.0005f;
-        _g = Vec3f(0.0f, -9.8f, 0.0f);
+        _dt = 0.02f;
+        _g  = Vec3f(0.0f, -9.8f, 0.0f);
         _omega = 0.5f;
 
         // derived properties

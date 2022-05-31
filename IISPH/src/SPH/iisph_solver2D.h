@@ -14,10 +14,10 @@ class IISPHsolver2D
 {
 public:
     explicit IISPHsolver2D(
-        const Real h = 0.5f,      // particle spacing
-        const Real rho0 = 1e3f,   // rest density
-        const Real nu = 0.08f,    // kinematic viscosity
-        const Real eta = 0.01f)   // compressibility
+        const Real h    = 0.5f,     // particle spacing
+        const Real rho0 = 1e3f,     // rest density
+        const Real nu   = 0.08f,    // kinematic viscosity
+        const Real eta  = 0.01f)    // compressibility
     {
         // fluid properties
         _h    = h;

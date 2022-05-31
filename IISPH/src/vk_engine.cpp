@@ -19,7 +19,7 @@ void VulkanEngine::init() {
     initDescriptors();
 
     initAssets();
-    initScene2D();
+    initScene3D();
 }
 
 void VulkanEngine::run() {
@@ -32,7 +32,7 @@ void VulkanEngine::run() {
 }
 
 void VulkanEngine::update() {
-    updateScene2D();
+    updateScene3D();
 
     mapCameraData();
     mapObjectsData();
@@ -636,7 +636,7 @@ void VulkanEngine::initScene2D() {
 void VulkanEngine::initScene3D() {
     // init SPH logic
     solver3D = IISPHsolver3D();
-    solver3D.init(30, 20, 30, 8, 8, 8);
+    solver3D.init(20, 20, 20, 12, 12, 12);
 
     // init camera
     camera = Camera(glm::vec3(10.0f, 10.0f, 50.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -659,7 +659,7 @@ void VulkanEngine::initScene3D() {
 
         renderables.push_back(fluidParticle);
     }
-
+    /*
     // create boundary particles
     for (int i = 0; i < solver3D.boundaryCount(); i++) {
         Vec3f p = solver3D.boundaryPosition(i);
@@ -675,7 +675,7 @@ void VulkanEngine::initScene3D() {
         boundaryParticle.albedoColor = solver3D.boundaryColor(i);
 
         renderables.push_back(boundaryParticle);
-    }
+    }*/
     std::cout
         << "number of fluid particles    : " << solver3D.fluidCount() << "\n"
         << "number of boundary particles : " << solver3D.boundaryCount() << "\n"
@@ -759,7 +759,7 @@ void VulkanEngine::updateScene3D() {
             renderables[i].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
             renderables[i].albedoColor = solver3D.fluidColor(i);
         }
-
+        /*
         // update boundary particles
         for (int i = 0; i < solver3D.boundaryCount(); i++) {
             Vec3f p = solver3D.boundaryPosition(i);
@@ -770,13 +770,13 @@ void VulkanEngine::updateScene3D() {
 
             renderables[i + solver3D.fluidCount()].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
             renderables[i + solver3D.fluidCount()].albedoColor = solver3D.boundaryColor(i);
-        }
+        }*/
     }
 }
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
     //drawObjects(commandBuffer, renderables.data(), renderables.size());
-    drawInstanced(commandBuffer, renderables[0], renderables.size());//solver3D.fluidCount());
+    drawInstanced(commandBuffer, renderables[0], solver3D.fluidCount());
 
     if(recordingModeOn && !appTimerStopped)
         savesFrames();

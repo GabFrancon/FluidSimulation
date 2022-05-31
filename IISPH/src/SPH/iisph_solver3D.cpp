@@ -150,7 +150,6 @@ void IISPHsolver3D::initNeighbors() {
         computeDensity(i);
 
     visualizeFluidDensity();
-    visualizeFluidNeighbors(50);
 }
 
 void IISPHsolver3D::update() {
@@ -161,7 +160,6 @@ void IISPHsolver3D::update() {
     integration();
 
     visualizeFluidDensity();
-    visualizeFluidNeighbors(50);
 }
 
 void IISPHsolver3D::updateNeighbors() {
@@ -410,6 +408,7 @@ void IISPHsolver3D::computeDensity(int i) {
 void IISPHsolver3D::computeAdvectionForces(int i) {
     Fadv[i].x = 0.0f;
     Fadv[i].y = 0.0f;
+    Fadv[i].z = 0.0f;
     addBodyForce(i);
     addViscousForce(i);
 }
@@ -438,6 +437,7 @@ void IISPHsolver3D::predictVelocity(int i) {
 void IISPHsolver3D::storeDii(int i) {
     Dii[i].x = 0.0f;
     Dii[i].y = 0.0f;
+    Dii[i].z = 0.0f;
     Vec3f pos_ij;
 
     std::vector<Index> fluidNeighbors = _fNeighbors[i];
@@ -510,6 +510,7 @@ void IISPHsolver3D::storeAii(int i) {
 void IISPHsolver3D::storeSumDijPj(int i) {
     sumDijPj[i].x = 0.0f;
     sumDijPj[i].y = 0.0f;
+    sumDijPj[i].z = 0.0f;
     Vec3f pos_ij;
 
     std::vector<Index> fluidNeighbors = _fNeighbors[i];
@@ -569,6 +570,7 @@ void IISPHsolver3D::computeError()
 void IISPHsolver3D::computePressureForces(int i) {
     Fp[i].x = 0.0f;
     Fp[i].y = 0.0f;
+    Fp[i].z = 0.0f;
     Vec3f pos_ij;
 
     std::vector<Index> fluidNeighbors = _fNeighbors[i];
