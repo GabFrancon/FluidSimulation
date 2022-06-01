@@ -12,7 +12,7 @@ void IISPHsolver3D::init(const int gridX, const int gridY, const int gridZ, cons
 
     // sample fluid mass
     _fPosition.clear();
-    sampleFluidCube(Vec3i(1), Vec3i(fluidWidth+1, fluidHeight+1, fluidDepth+1));
+    sampleFluidCube(Vec3i(1), Vec3i(fluidWidth, fluidHeight, fluidDepth) + 1);
     _fluidCount = _fPosition.size();
     _fColor = std::vector<glm::vec3>(_fluidCount, denseColor);
 

@@ -7,6 +7,9 @@ void Material::updatePipeline(std::vector<VkDescriptorSetLayout> layouts, VkExte
 }
 
 void Material::updateTexture(VkDescriptorSetLayout layout, VkDescriptorPool descriptorPool) {
+    if (texture == VK_NULL_HANDLE)
+        return;
+
     VkDescriptorSetAllocateInfo textureAllocInfo{};
     textureAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     textureAllocInfo.descriptorPool = descriptorPool;

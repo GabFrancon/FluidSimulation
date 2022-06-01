@@ -52,11 +52,6 @@ public:
     const inline int resY() const { return _resY; }
     const inline int resZ() const { return _resZ; }
 
-    const inline glm::vec3 center() const { return glm::vec3(_resX, _resY, _resZ) / 2.0f; }
-
-    const inline glm::vec3 getWallColor() const { return wallColor; }
-
-
 private:
     /*--------------------------------------------Main functions--------------------------------------------------*/
 

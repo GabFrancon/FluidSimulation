@@ -17,10 +17,10 @@
 
 
 // global constants
-static const uint32_t WIDTH  = 1920;
-static const uint32_t HEIGHT = 1080;
+static const uint32_t WIDTH  = 1600;
+static const uint32_t HEIGHT = 1200;
 
-static const int MAX_OBJECTS_RENDERED  = 50000;
+static const int MAX_OBJECTS_RENDERED  = 80000;
 static const int MAX_MATERIALS_CREATED = 10;
 static const int MAX_FRAMES_IN_FLIGHT  = 2;
 
@@ -107,7 +107,7 @@ private:
     bool recordingModeOn    = false;
     bool framebufferResized = false;
     bool wireframeViewOn    = false;
-    bool panoramaViewOn     = true;
+    bool panoramaViewOn     = false;
 
 
 
