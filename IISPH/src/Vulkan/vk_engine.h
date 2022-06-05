@@ -10,9 +10,7 @@
 #include "vk_camera.h"
 #include "vk_tools.h"
 
-#include "SPH/wcsph_solver2D.h"
-#include "SPH/iisph_solver2D.h"
-#include "SPH/iisph_solver3D.h"
+#include "../SPH/sph_solver3D.h"
 
 
 
@@ -64,7 +62,7 @@ public:
 
 private:
 
-    /*---------------------------------------CLASS MEMBERS---------------------------------------*/
+    /*-----------------------------------------CLASS MEMBERS----------------------------------------*/
 
     // Interface
     GLFWwindow* window;
@@ -95,8 +93,7 @@ private:
     std::vector<RenderObject> renderables;
 
     // Logic
-    IISPHsolver2D solver2D;
-    IISPHsolver3D solver3D;
+    IISPHsolver3D sphSolver;
 
     float appTimer         = 0.0f;
     float lastClockTime    = 0.0f;
@@ -107,8 +104,6 @@ private:
     bool recordingModeOn    = false;
     bool framebufferResized = false;
     bool wireframeViewOn    = false;
-    bool panoramaViewOn     = false;
-
 
 
 
@@ -152,10 +147,8 @@ private:
     Material* getMaterial(const std::string& name);
 
     // Scene Rendering
-    void initScene2D();
-    void initScene3D();
-    void updateScene2D();
-    void updateScene3D();
+    void initScene();
+    void updateScene();
     void renderScene(VkCommandBuffer commandBuffer);
     void drawSingleObject(VkCommandBuffer commandBuffer, int i);
     void drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount);

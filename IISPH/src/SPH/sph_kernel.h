@@ -1,7 +1,6 @@
 #pragma once
 
-#include "vector2D.h"
-#include "vector3D.h"
+#include "sph_types.h"
 
 #ifndef M_PI
 #define M_PI 3.141592

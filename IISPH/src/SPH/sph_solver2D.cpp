@@ -1,4 +1,4 @@
-#include "iisph_solver2D.h"
+#include "sph_solver2D.h"
 
 
 /*--------------------------------------------Main functions--------------------------------------------------*/
@@ -14,33 +14,32 @@ void IISPHsolver2D::init(const int gridX, const int gridY, const int fluidWidth,
     _fPosition.clear();
     sampleFluidCube(1, 1, fluidWidth + 1, fluidHeight + 1);
     _fluidCount = _fPosition.size();
-    _fColor = std::vector<glm::vec3>(_fluidCount, denseColor);
+    _fColor = std::vector<Vec3f>(_fluidCount, _denseColor);
  
     // sample boundaries
     _bPosition.clear();
     sampleBoundaryCube(0, 0, _resX, _resY);
-    //sampleBoundaryCube(30, 5, 40, 10);
     _boundaryCount = _bPosition.size();
-    _bColor = std::vector<glm::vec3>(_boundaryCount, wallColor);
+    _bColor = std::vector<Vec3f>(_boundaryCount, _wallColor);
 
     // init other particle quantities
-    _fDensity = std::vector<Real>(_fluidCount, 0);
+    _fDensity  = std::vector<Real> (_fluidCount, 0);
     _fVelocity = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
-    _fPressure = std::vector<Real>(_fluidCount, 0);
+    _fPressure = std::vector<Real> (_fluidCount, 0);
 
     _fNeighbors = std::vector<std::vector<Index>>(_fluidCount, std::vector<Index>());
     _bNeighbors = std::vector<std::vector<Index>>(_fluidCount, std::vector<Index>());
 
-    Psi      = std::vector<Real> (_boundaryCount, 0);
-    Dii      = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
-    Aii      = std::vector<Real> (_fluidCount, 0);
-    sumDijPj = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
-    Vadv     = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
-    Dadv     = std::vector<Real> (_fluidCount, 0);
-    Pl       = std::vector<Real> (_fluidCount, 0);
-    Dcorr    = std::vector<Real> (_fluidCount, 0);
-    Fadv     = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
-    Fp       = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
+    _Psi      = std::vector<Real> (_boundaryCount, 0);
+    _Dii      = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
+    _Aii      = std::vector<Real> (_fluidCount, 0);
+    _sumDijPj = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
+    _Vadv     = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
+    _Dadv     = std::vector<Real> (_fluidCount, 0);
+    _Pl       = std::vector<Real> (_fluidCount, 0);
+    _Dcorr    = std::vector<Real> (_fluidCount, 0);
+    _Fadv     = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
+    _Fp       = std::vector<Vec2f>(_fluidCount, Vec2f(0, 0));
 
     initNeighbors();
 }
@@ -313,7 +312,7 @@ void IISPHsolver2D::findBoundaryNeighbors(std::vector< Index >& neighbors, int i
 /*------------------------------------------Fluid simulation-------------------------------------------------*/
 
 void IISPHsolver2D::computePsi(int i) {
-    Psi[i] = 0.0f;
+    _Psi[i] = 0.0f;
     Vec2f pos_ij;
 
     std::vector<Index> boundaryNeighbors;
@@ -321,10 +320,10 @@ void IISPHsolver2D::computePsi(int i) {
 
     for (Index& j : boundaryNeighbors) {
         pos_ij = _bPosition[i] - _bPosition[j];
-        Psi[i] += _kernel.W(pos_ij);
+        _Psi[i] += _kernel.W(pos_ij);
     }
 
-    Psi[i] = _rho0 / Psi[i];
+    _Psi[i] = _rho0 / _Psi[i];
 }
 
 void IISPHsolver2D::computeDensity(int i) {
@@ -340,19 +339,19 @@ void IISPHsolver2D::computeDensity(int i) {
     std::vector<Index> boundaryNeighbors = _bNeighbors[i];
     for (Index& j : boundaryNeighbors) {
         pos_ij = _fPosition[i] - _bPosition[j];
-        _fDensity[i] += Psi[j] * _kernel.W(pos_ij);
+        _fDensity[i] += _Psi[j] * _kernel.W(pos_ij);
     }
 }
 
 void IISPHsolver2D::computeAdvectionForces(int i) {
-    Fadv[i].x = 0.0f;
-    Fadv[i].y = 0.0f;
+    _Fadv[i].x = 0.0f;
+    _Fadv[i].y = 0.0f;
     addBodyForce(i);
     addViscousForce(i);
 }
 
 void IISPHsolver2D::addBodyForce(int i) {
-    Fadv[i] += _m0 * _g;
+    _Fadv[i] += _m0 * _g;
 }
 
 void IISPHsolver2D::addViscousForce(int i) {
@@ -364,38 +363,38 @@ void IISPHsolver2D::addViscousForce(int i) {
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
             vel_ij = _fVelocity[i] - _fVelocity[j];
-            Fadv[i] += 2 * _nu * (square(_m0) / _fDensity[j]) * vel_ij.dotProduct(pos_ij) * _kernel.gradW(pos_ij) / (pos_ij.lengthSquare() + 0.01 * _h);
+            _Fadv[i] += 2 * _nu * (square(_m0) / _fDensity[j]) * vel_ij.dotProduct(pos_ij) * _kernel.gradW(pos_ij) / (pos_ij.lengthSquare() + 0.01 * _h);
         }
 }
 
 void IISPHsolver2D::predictVelocity(int i) {
-    Vadv[i] = _fVelocity[i] + _dt * Fadv[i] / _m0;
+    _Vadv[i] = _fVelocity[i] + _dt * _Fadv[i] / _m0;
 }
 
 void IISPHsolver2D::storeDii(int i) {
-    Dii[i].x = 0.0f;
-    Dii[i].y = 0.0f;
+    _Dii[i].x = 0.0f;
+    _Dii[i].y = 0.0f;
     Vec2f pos_ij;
 
     std::vector<Index> fluidNeighbors = _fNeighbors[i];
     for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
-            Dii[i] += (-_m0 / square(_fDensity[i])) * _kernel.gradW(pos_ij);
+            _Dii[i] += (-_m0 / square(_fDensity[i])) * _kernel.gradW(pos_ij);
         }
 
     std::vector<Index> boundaryNeighbors = _bNeighbors[i];
     for (Index& j : boundaryNeighbors)
         if (_bPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _bPosition[j];
-            Dii[i] += (-Psi[j] / square(_fDensity[i])) * _kernel.gradW(pos_ij);
+            _Dii[i] += (-_Psi[j] / square(_fDensity[i])) * _kernel.gradW(pos_ij);
         }
 
-    Dii[i] *= square(_dt);
+    _Dii[i] *= square(_dt);
 }
 
 void IISPHsolver2D::predictDensity(int i) {
-    Dadv[i] = 0.0f;
+    _Dadv[i] = 0.0f;
     Vec2f pos_ij;
     Vec2f vel_adv_ij;
 
@@ -403,28 +402,28 @@ void IISPHsolver2D::predictDensity(int i) {
     for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
-            vel_adv_ij = Vadv[i] - Vadv[j];
-            Dadv[i] += _m0 * vel_adv_ij.dotProduct(_kernel.gradW(pos_ij));
+            vel_adv_ij = _Vadv[i] - _Vadv[j];
+            _Dadv[i] += _m0 * vel_adv_ij.dotProduct(_kernel.gradW(pos_ij));
         }
 
     std::vector<Index> boundaryNeighbors = _bNeighbors[i];
     for (Index& j : boundaryNeighbors)
         if (_bPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _bPosition[j];
-            vel_adv_ij = Vadv[i];
-            Dadv[i] += Psi[j] * vel_adv_ij.dotProduct(_kernel.gradW(pos_ij));
+            vel_adv_ij = _Vadv[i];
+            _Dadv[i] += _Psi[j] * vel_adv_ij.dotProduct(_kernel.gradW(pos_ij));
         }
 
-    Dadv[i] *= _dt;
-    Dadv[i] += _fDensity[i];
+    _Dadv[i] *= _dt;
+    _Dadv[i] += _fDensity[i];
 }
 
 void IISPHsolver2D::initPressure(int i) {
-    Pl[i] = 0.5f * _fPressure[i];
+    _Pl[i] = 0.5f * _fPressure[i];
 }
 
 void IISPHsolver2D::storeAii(int i) {
-    Aii[i] = 0.0f;
+    _Aii[i] = 0.0f;
     Vec2f pos_ij;
     Vec2f d_ji;
 
@@ -433,34 +432,34 @@ void IISPHsolver2D::storeAii(int i) {
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
             d_ji = -( square(_dt) * _m0 / square(_fDensity[i]) ) * (-_kernel.gradW(pos_ij));
-            Aii[i] += _m0 * (Dii[i] - d_ji).dotProduct(_kernel.gradW(pos_ij));       
+            _Aii[i] += _m0 * (_Dii[i] - d_ji).dotProduct(_kernel.gradW(pos_ij));       
         }
 
     std::vector<Index> boundaryNeighbors = _bNeighbors[i];
     for (Index& j : boundaryNeighbors)
         if (_bPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _bPosition[j];
-            Aii[i] += Psi[j] * Dii[i].dotProduct(_kernel.gradW(pos_ij));
+            _Aii[i] += _Psi[j] * _Dii[i].dotProduct(_kernel.gradW(pos_ij));
         }
 }
 
 void IISPHsolver2D::storeSumDijPj(int i) {
-    sumDijPj[i].x = 0.0f;
-    sumDijPj[i].y = 0.0f;
+    _sumDijPj[i].x = 0.0f;
+    _sumDijPj[i].y = 0.0f;
     Vec2f pos_ij;
 
     std::vector<Index> fluidNeighbors = _fNeighbors[i];
     for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
-            sumDijPj[i] += -(_m0 * _fPressure[j] / square(_fDensity[j]) ) * _kernel.gradW(pos_ij);
+            _sumDijPj[i] += -(_m0 * _fPressure[j] / square(_fDensity[j]) ) * _kernel.gradW(pos_ij);
         }
 
-    sumDijPj[i] *= square(_dt);
+    _sumDijPj[i] *= square(_dt);
 }
 
 void IISPHsolver2D::computePressure(int i) {
-    Dcorr[i] = 0.0f;
+    _Dcorr[i] = 0.0f;
     Vec2f pos_ij;
     Vec2f d_ji;
     Vec2f aux;
@@ -470,61 +469,60 @@ void IISPHsolver2D::computePressure(int i) {
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
             d_ji = -(square(_dt) * _m0 / square(_fDensity[i])) * (-_kernel.gradW(pos_ij));
-            aux = sumDijPj[i] - Dii[j] * Pl[j] - (sumDijPj[j] - d_ji * Pl[i]);
-            Dcorr[i] += _m0 * aux.dotProduct(_kernel.gradW(pos_ij));
+            aux = _sumDijPj[i] - _Dii[j] * _Pl[j] - (_sumDijPj[j] - d_ji * _Pl[i]);
+            _Dcorr[i] += _m0 * aux.dotProduct(_kernel.gradW(pos_ij));
         }
 
     std::vector<Index> boundaryNeighbors = _bNeighbors[i];
     for (Index& j : boundaryNeighbors)
         if (_bPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _bPosition[j];
-            Dcorr[i] += Psi[j] * sumDijPj[i].dotProduct(_kernel.gradW(pos_ij));
+            _Dcorr[i] += _Psi[j] * _sumDijPj[i].dotProduct(_kernel.gradW(pos_ij));
         }
 
-    Dcorr[i] += Dadv[i];
+    _Dcorr[i] += _Dadv[i];
 
-    Real previousPl = Pl[i];
-    if (std::abs(Aii[i]) > std::numeric_limits<Real>::epsilon())
-        Pl[i] = (1 - _omega) * previousPl + (_omega / Aii[i]) * (_rho0 - Dcorr[i]);
+    Real previousPl = _Pl[i];
+    if (std::abs(_Aii[i]) > std::numeric_limits<Real>::epsilon())
+        _Pl[i] = (1 - _omega) * previousPl + (_omega / _Aii[i]) * (_rho0 - _Dcorr[i]);
     else
-        Pl[i] = 0.0;
+        _Pl[i] = 0.0;
     
-    _fPressure[i] = std::fmax(Pl[i], 0.0f);
-    Pl[i] = _fPressure[i];
-    Dcorr[i] += Aii[i] * previousPl;
+    _fPressure[i] = std::fmax(_Pl[i], 0.0f);
+    _Pl[i] = _fPressure[i];
+    _Dcorr[i] += _Aii[i] * previousPl;
 }
 
-void IISPHsolver2D::computeError()
-{
+void IISPHsolver2D::computeError() {
     _avgDensity = 0.0;
     for (int i = 0; i < _fluidCount; i++)
-        _avgDensity += Dcorr[i];
+        _avgDensity += _Dcorr[i];
 
     _avgDensity /= _fPosition.size();
 }
 
 void IISPHsolver2D::computePressureForces(int i) {
-    Fp[i].x = 0.0f;
-    Fp[i].y = 0.0f;
+    _Fp[i].x = 0.0f;
+    _Fp[i].y = 0.0f;
     Vec2f pos_ij;
 
     std::vector<Index> fluidNeighbors = _fNeighbors[i];
     for (Index& j : fluidNeighbors)
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
-            Fp[i] += - square(_m0) * (_fPressure[i] / square(_fDensity[i]) + _fPressure[j] / square(_fDensity[j]) ) * _kernel.gradW(pos_ij);
+            _Fp[i] += - square(_m0) * (_fPressure[i] / square(_fDensity[i]) + _fPressure[j] / square(_fDensity[j]) ) * _kernel.gradW(pos_ij);
         }
 
     std::vector<Index> boundaryNeighbors = _bNeighbors[i];
     for (Index& j : boundaryNeighbors)
         if (_bPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _bPosition[j];
-            Fp[i] += -_m0 * Psi[j] * (_fPressure[i] / square(_fDensity[i]) ) * _kernel.gradW(pos_ij);
+            _Fp[i] += -_m0 * _Psi[j] * (_fPressure[i] / square(_fDensity[i]) ) * _kernel.gradW(pos_ij);
         }
 }
 
 void IISPHsolver2D::updateVelocity(int i) {
-    _fVelocity[i] = Vadv[i] + _dt * Fp[i] / _m0;
+    _fVelocity[i] = _Vadv[i] + _dt * _Fp[i] / _m0;
 }
 
 void IISPHsolver2D::updatePosition(int i) {
@@ -541,31 +539,31 @@ void IISPHsolver2D::updatePosition(int i) {
 
 void IISPHsolver2D::visualizeFluidDensity() {
     for (Index i = 0; i < _fluidCount; i++) {
-        _fColor[i].x = lightColor.x + (_fDensity[i] / _rho0) * (denseColor.x - lightColor.x);
-        _fColor[i].y = lightColor.y + (_fDensity[i] / _rho0) * (denseColor.y - lightColor.y);
-        _fColor[i].z = lightColor.z + (_fDensity[i] / _rho0) * (denseColor.z - lightColor.z);
+        _fColor[i].x = _lightColor.x + (_fDensity[i] / _rho0) * (_denseColor.x - _lightColor.x);
+        _fColor[i].y = _lightColor.y + (_fDensity[i] / _rho0) * (_denseColor.y - _lightColor.y);
+        _fColor[i].z = _lightColor.z + (_fDensity[i] / _rho0) * (_denseColor.z - _lightColor.z);
     }
     for (Index i = 0; i < _boundaryCount; i++)
-        _bColor[i] = wallColor;
+        _bColor[i] = _wallColor;
 }
 
 void IISPHsolver2D::visualizeBoundaryDensity() {
     for (Index i = 0; i < _boundaryCount; i++) {
-        _bColor[i].x = lightColor.x + (Psi[i] / _rho0) * (wallColor.x - lightColor.x);
-        _bColor[i].y = lightColor.y + (Psi[i] / _rho0) * (wallColor.y - lightColor.y);
-        _bColor[i].z = lightColor.z + (Psi[i] / _rho0) * (wallColor.z - lightColor.z);
+        _bColor[i].x = _lightColor.x + (_Psi[i] / _rho0) * (_wallColor.x - _lightColor.x);
+        _bColor[i].y = _lightColor.y + (_Psi[i] / _rho0) * (_wallColor.y - _lightColor.y);
+        _bColor[i].z = _lightColor.z + (_Psi[i] / _rho0) * (_wallColor.z - _lightColor.z);
     }
 }
 
 void IISPHsolver2D::viualizeFluidNeighbors(int i) {
 
     for (int j = 0; j < _fNeighbors[i].size(); j++)
-        _fColor[_fNeighbors[i][j]] = greenColor;
+        _fColor[_fNeighbors[i][j]] = _greenColor;
 
     for (int j = 0; j < _bNeighbors[i].size(); j++)
-        _bColor[_bNeighbors[i][j]] = pinkColor;
+        _bColor[_bNeighbors[i][j]] = _pinkColor;
 
-    _fColor[i] = redColor;
+    _fColor[i] = _redColor;
 }
 
 void IISPHsolver2D::debugCrash(int i) {
@@ -574,14 +572,14 @@ void IISPHsolver2D::debugCrash(int i) {
         << "velocity     : " << _fVelocity[i] << "\n"
         << "pressure     : " << _fPressure[i] << "\n"
         << "density      : " << _fDensity[i]  << "\n"
-        << "F_p          : " << Fp[i]         << "\n"
-        << "rho_corr     : " << Dcorr[i]      << "\n"
-        << "sum d_ij p_j : " << sumDijPj[i]   << "\n"
-        << "a_ii         : " << Aii[i]        << "\n"
-        << "rho_adv      : " << Dadv[i]       << "\n"
-        << "d_ii         : " << Dii[i]        << "\n"
-        << "v_adv        : " << Vadv[i]       << "\n"
-        << "F_adv        : " << Fadv[i]       << "\n"
+        << "F_p          : " << _Fp[i]         << "\n"
+        << "rho_corr     : " << _Dcorr[i]      << "\n"
+        << "sum d_ij p_j : " << _sumDijPj[i]   << "\n"
+        << "a_ii         : " << _Aii[i]        << "\n"
+        << "rho_adv      : " << _Dadv[i]       << "\n"
+        << "d_ii         : " << _Dii[i]        << "\n"
+        << "v_adv        : " << _Vadv[i]       << "\n"
+        << "F_adv        : " << _Fadv[i]       << "\n"
         << std::endl;
 
     std::cout << "neighbors : \n";
@@ -596,14 +594,14 @@ void IISPHsolver2D::debugCrash(int i) {
                 << "    velocity     : " << _fVelocity[j] << "\n"
                 << "    pressure     : " << _fPressure[j] << "\n"
                 << "    density      : " << _fDensity[j]  << "\n"
-                << "    F_p          : " << Fp[j]         << "\n"
-                << "    rho_corr     : " << Dcorr[i]      << "\n"
-                << "    sum d_ij p_j : " << sumDijPj[j]   << "\n"
-                << "    a_ii         : " << Aii[j]        << "\n"
-                << "    rho_adv      : " << Dadv[j]       << "\n"
-                << "    d_ii         : " << Dii[j]        << "\n"
-                << "    v_adv        : " << Vadv[j]       << "\n"
-                << "    F_adv        : " << Fadv[j]       << "\n"
+                << "    F_p          : " << _Fp[j]         << "\n"
+                << "    rho_corr     : " << _Dcorr[i]      << "\n"
+                << "    sum d_ij p_j : " << _sumDijPj[j]   << "\n"
+                << "    a_ii         : " << _Aii[j]        << "\n"
+                << "    rho_adv      : " << _Dadv[j]       << "\n"
+                << "    d_ii         : " << _Dii[j]        << "\n"
+                << "    v_adv        : " << _Vadv[j]       << "\n"
+                << "    F_adv        : " << _Fadv[j]       << "\n"
                 << "    gradient     : " << _kernel.gradW(pos_ij) << "\n"
                 << std::endl;
         }

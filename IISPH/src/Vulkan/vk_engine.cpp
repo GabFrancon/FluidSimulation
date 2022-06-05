@@ -19,7 +19,7 @@ void VulkanEngine::init() {
     initDescriptors();
 
     initAssets();
-    initScene3D();
+    initScene();
 }
 
 void VulkanEngine::run() {
@@ -32,7 +32,7 @@ void VulkanEngine::run() {
 }
 
 void VulkanEngine::update() {
-    updateScene3D();
+    updateScene();
 
     mapCameraData();
     mapSceneData();
@@ -182,7 +182,7 @@ void VulkanEngine::createWindow() {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-    window = glfwCreateWindow(WIDTH, HEIGHT, "WCSPH simulation", nullptr, nullptr);
+    window = glfwCreateWindow(WIDTH, HEIGHT, "SPH simulation", nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
 }
 
@@ -204,9 +204,6 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
     }
     else if (key == GLFW_KEY_R && action == GLFW_PRESS) {
         engine->recordingModeOn = !engine->recordingModeOn;
-    }
-    else if (key == GLFW_KEY_P && action == GLFW_PRESS) {
-        engine->panoramaViewOn = !engine->panoramaViewOn;
     }
     else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
@@ -237,7 +234,6 @@ void VulkanEngine::mouseCallback(GLFWwindow* window, double xpos, double ypos)
 
     auto engine = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
     engine->camera.processMouseMovement(xpos - lastX, lastY - ypos);
-    engine->panoramaViewOn = false;
     engine->appTimerStopped = true;
 
     lastX = xpos;
@@ -626,69 +622,17 @@ Material* VulkanEngine::getMaterial(const std::string& name) {
 
 
 // Scene
-void VulkanEngine::initScene2D() {
+void VulkanEngine::initScene() {
     // init SPH logic
-    solver2D = IISPHsolver2D();
-    solver2D.init(48, 27, 16, 16);
+    sphSolver = IISPHsolver3D();
+    Vec3i gridDim  = Vec3i(25, 40, 25);
+    Vec3i fluidDim = Vec3i(12, 12, 12);
+    sphSolver.init(gridDim, fluidDim);
 
-    // init camera
-    glm::vec3 eye    = glm::vec3(0.0f, 0.0f, 10.0f);
-    glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 up     = glm::vec3(0.0f, 1.0f, 0.0f);
-
-    float near = 0.1f;
-    float far  = 100.0f;
-
-    camera.viewMatrix = glm::lookAt(eye, center, up);
-    camera.projMatrix = Camera::ortho(0.0f, solver2D.resX(), 0.0f, solver2D.resY(), near, far);
-
-    // create fluid particles
-    for (int i = 0 ; i < solver2D.fluidCount(); i++) {
-        Vec2f p = solver2D.fluidPosition(i);
-        glm::vec3 position = glm::vec3(p.x, p.y, 0.0f);
-        glm::vec3 size = glm::vec3(0.1f);
-        glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
-        float angle = 0.0f;
-
-        RenderObject fluidParticle{};
-        fluidParticle.mesh        = getMesh("sphere");
-        fluidParticle.material    = getMaterial("water");
-        fluidParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-        fluidParticle.albedoColor = solver2D.fluidColor(i);
-
-        renderables.push_back(fluidParticle);
-    }
-
-    // create boundary particles
-    for (int i = 0; i < solver2D.boundaryCount(); i++) {
-        Vec2f p = solver2D.boundaryPosition(i);
-        glm::vec3 position = glm::vec3(p.x, p.y, 0.0f);
-        glm::vec3 size = glm::vec3(0.1f);
-        glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
-        float angle = 0.0f;
-
-        RenderObject boundaryParticle{};
-        boundaryParticle.mesh = getMesh("sphere");
-        boundaryParticle.material = getMaterial("water");
-        boundaryParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-        boundaryParticle.albedoColor = solver2D.boundaryColor(i);
-
-        renderables.push_back(boundaryParticle);
-    }
-    std::cout 
-        << "number of fluid particles    : " << solver2D.fluidCount() << "\n" 
-        << "number of boundary particles : " << solver2D.boundaryCount() << "\n"
-        << std::endl;
-}
-
-void VulkanEngine::initScene3D() {
-    // init SPH logic
-    solver3D = IISPHsolver3D();
-    solver3D.init(32, 60, 32, 18, 18, 18);
     float epsilon = 0.21f;
-    float resX = solver3D.resX() - 2.0f;
-    float resY = solver3D.resY() - 2.0f;
-    float resZ = solver3D.resZ() - 2.0f;
+    float sizeX = sphSolver.sizeX() - 2.0f;
+    float sizeY = sphSolver.sizeY() - 2.0f;
+    float sizeZ = sphSolver.sizeZ() - 2.0f;
 
     // init scene
     sceneInfo = SceneInfo();
@@ -697,38 +641,40 @@ void VulkanEngine::initScene3D() {
 
     // init camera
     float coeff = 1.75f;
-    camera = Camera(glm::vec3(solver3D.resX() * coeff, solver3D.resY() / coeff, solver3D.resZ() * coeff), glm::vec3(0.0f, 1.0f, 0.0f), -20.0f, -135.0f);
+    camera = Camera(glm::vec3(sphSolver.sizeX() * coeff, sphSolver.sizeY() / coeff, sphSolver.sizeZ() * coeff), glm::vec3(0.0f, 1.0f, 0.0f), -20.0f, -135.0f);
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
-    Vec3f p{};
-    glm::vec3 fluidPos{}, fluidSize{}, rotationAxis(0.0f, 1.0f, 0.0f);
+    Vec3f p{}, c{};
+    glm::vec3 position{}, color{}, size{}, rotationAxis(0.0f, 1.0f, 0.0f);
     float angle = 0.0f;
 
     // create fluid particles
-    for (int i = 0; i < solver3D.fluidCount(); i++) {
-        p = solver3D.fluidPosition(i) - 1.0f;
-        fluidPos  = glm::vec3(p.x, p.y, p.z);
-        fluidSize = glm::vec3(0.2f);
+    for (int i = 0; i < sphSolver.fluidCount(); i++) {
+        p = sphSolver.fluidPosition(i) - 1.0f;
+        c = sphSolver.fluidColor(i);
+        position   = glm::vec3(p.x, p.y, p.z);
+        color = glm::vec3(c.x, c.y, c.z);
+        size = glm::vec3(0.2f);
 
         RenderObject fluidParticle{};
         fluidParticle.mesh = getMesh("sphere");
         fluidParticle.material = getMaterial("particle");
-        fluidParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), fluidPos), angle, rotationAxis), fluidSize);
-        fluidParticle.albedoColor = solver3D.fluidColor(i);
+        fluidParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+        fluidParticle.albedoColor = color;
 
         renderables.push_back(fluidParticle);
     }
     
     std::cout
-        << "number of fluid particles    : " << solver3D.fluidCount() << "\n"
-        << "number of boundary particles : " << solver3D.boundaryCount() << "\n"
+        << "number of fluid particles    : " << sphSolver.fluidCount() << "\n"
+        << "number of boundary particles : " << sphSolver.boundaryCount() << "\n"
         << std::endl;
 
     // create support
     float height = 20.0f;
-    glm::vec3 supportPos  = glm::vec3(resX +     epsilon, -height - 2 * epsilon, resZ +     epsilon) / 2.0f;
-    glm::vec3 supportSize = glm::vec3(resX + 2 * epsilon,  height +     epsilon, resZ + 2 * epsilon) / 2.0f;
+    glm::vec3 supportPos  = glm::vec3(sizeX +     epsilon, -height - 2 * epsilon, sizeZ +     epsilon) / 2.0f;
+    glm::vec3 supportSize = glm::vec3(sizeX + 2 * epsilon,  height +     epsilon, sizeZ + 2 * epsilon) / 2.0f;
 
     RenderObject support{};
     support.mesh = getMesh("cube");
@@ -740,8 +686,8 @@ void VulkanEngine::initScene3D() {
 
     // create back wall
     float width = 30.0f;
-    glm::vec3 wallPos  = glm::vec3(resX +     epsilon + width, resY - 2 * epsilon - height, resZ +     epsilon + width) / 2.0f;
-    glm::vec3 wallSize = glm::vec3(resX + 2 * epsilon + width, resY +     epsilon + height, resZ + 2 * epsilon + width) / 2.0f;
+    glm::vec3 wallPos  = glm::vec3(sizeX +     epsilon + width, sizeY - 2 * epsilon - height, sizeZ +     epsilon + width) / 2.0f;
+    glm::vec3 wallSize = glm::vec3(sizeX + 2 * epsilon + width, sizeY +     epsilon + height, sizeZ + 2 * epsilon + width) / 2.0f;
 
     RenderObject backWall{};
     backWall.mesh = getMesh("cube");
@@ -752,55 +698,7 @@ void VulkanEngine::initScene3D() {
     renderables.push_back(backWall);
 }
 
-void VulkanEngine::updateScene2D() {
-    // update camera
-    glm::vec3 eye    = glm::vec3(0.0f, 0.0f, 10.0f);
-    glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 up     = glm::vec3(0.0f, 1.0f, 0.0f);
-
-    float near = 0.1f;
-    float far  = 100.0f;
-
-    camera.viewMatrix = glm::lookAt(eye, center, up);
-    camera.projMatrix = Camera::ortho(0.0f, solver2D.resX(), 0.0f, solver2D.resY(), near, far);
-
-    if (!appTimerStopped) {
-        currentClockTime = static_cast<float>(glfwGetTime());
-        const float dt = currentClockTime - lastClockTime;
-        lastClockTime = currentClockTime;
-        appTimer += dt;
-
-        //compute SPH logic
-        for (int i = 0; i < 1; i++)
-            solver2D.update();
-
-        // update fluid particles
-        for (int i = 0; i < solver2D.fluidCount(); i++) {
-            Vec2f p = solver2D.fluidPosition(i);
-            glm::vec3 position = glm::vec3(p.x, p.y, 0.0f);
-            glm::vec3 size = glm::vec3(0.1f);
-            glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
-            float angle = 0.0f;
-
-            renderables[i].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-            renderables[i].albedoColor = solver2D.fluidColor(i);
-        }
-
-        // update boundary particles
-        for (int i = 0; i < solver2D.boundaryCount(); i++) {
-            Vec2f p = solver2D.boundaryPosition(i);
-            glm::vec3 position = glm::vec3(p.x, p.y, 0.0f);
-            glm::vec3 size = glm::vec3(0.1f);
-            glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
-            float angle = 0.0f;
-
-            renderables[i + solver2D.fluidCount()].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-            renderables[i + solver2D.fluidCount()].albedoColor = solver2D.boundaryColor(i);
-        }
-    }
-}
-
-void VulkanEngine::updateScene3D() {
+void VulkanEngine::updateScene() {
     currentClockTime = static_cast<float>(glfwGetTime());
     const float dt = currentClockTime - lastClockTime;
     lastClockTime = currentClockTime;
@@ -812,20 +710,22 @@ void VulkanEngine::updateScene3D() {
         appTimer += dt;
 
         //compute SPH logic
-        solver3D.update();
+        sphSolver.update();
         
-        Vec3f p{};
-        glm::vec3 position{}, size{}, rotationAxis(0.0f, 1.0f, 0.0f);
+        Vec3f p{}, c{};
+        glm::vec3 position{}, color{}, size{}, rotationAxis(0.0f, 1.0f, 0.0f);
         float angle = 0.0f;
 
         // update fluid particles
-        for (int i = 0; i < solver3D.fluidCount(); i++) {
-            p = solver3D.fluidPosition(i) - 1.0f;
+        for (int i = 0; i < sphSolver.fluidCount(); i++) {
+            p = sphSolver.fluidPosition(i) - 1.0f;
+            c = sphSolver.fluidColor(i);
             position = glm::vec3(p.x, p.y, p.z);
+            color = glm::vec3(c.x, c.y, c.z);
             size = glm::vec3(0.2f);
 
             renderables[i].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-            renderables[i].albedoColor = solver3D.fluidColor(i);
+            renderables[i].albedoColor = color;
         }
     }
 }

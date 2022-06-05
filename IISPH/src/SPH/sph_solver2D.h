@@ -2,9 +2,6 @@
 
 #include "sph_kernel.h"
 
-#include <glm/vec3.hpp>
-#include <glm/exponential.hpp>
-
 #include <numeric>
 #include <algorithm>
 #include <vector>
@@ -40,13 +37,13 @@ public:
     void sampleBoundaryCube(int bottomX, int bottomY, int topX, int topY);
     void update();
 
-    const inline Index      fluidCount() const { return _fluidCount; }
-    const inline Vec2f&     fluidPosition(const Index i) const { return _fPosition[i]; }
-    const inline glm::vec3& fluidColor(const Index i) const { return _fColor[i]; }
+    const inline Index  fluidCount() const { return _fluidCount; }
+    const inline Vec2f& fluidPosition(const Index i) const { return _fPosition[i]; }
+    const inline Vec3f& fluidColor(const Index i) const { return _fColor[i]; }
 
-    const inline Index      boundaryCount() const { return _boundaryCount; }
-    const inline Vec2f&     boundaryPosition(const Index i) const { return _bPosition[i]; }
-    const inline glm::vec3& boundaryColor(const Index i) const { return _bColor[i]; }
+    const inline Index  boundaryCount() const { return _boundaryCount; }
+    const inline Vec2f& boundaryPosition(const Index i) const { return _bPosition[i]; }
+    const inline Vec3f& boundaryColor(const Index i) const { return _bColor[i]; }
 
     const inline int resX() const { return _resX; }
     const inline int resY() const { return _resY; }
@@ -114,27 +111,27 @@ private:
     CubicSpline _kernel;
 
     // fluid particles data
-    std::vector<Vec2f>     _fPosition;
-    std::vector<Vec2f>     _fVelocity;
-    std::vector<Real>      _fPressure;
-    std::vector<Real>      _fDensity;
-    std::vector<glm::vec3> _fColor;
+    std::vector<Vec2f> _fPosition;
+    std::vector<Vec2f> _fVelocity;
+    std::vector<Real>  _fPressure;
+    std::vector<Real>  _fDensity;
+    std::vector<Vec3f> _fColor;
 
     // boundary particles data
-    std::vector<Vec2f>     _bPosition;
-    std::vector<glm::vec3> _bColor;
+    std::vector<Vec2f> _bPosition;
+    std::vector<Vec3f> _bColor;
 
     // temporary data
-    std::vector<Real>  Psi;
-    std::vector<Vec2f> Dii;
-    std::vector<Real>  Aii;
-    std::vector<Vec2f> sumDijPj;
-    std::vector<Vec2f> Vadv;
-    std::vector<Real>  Dadv;
-    std::vector<Real>  Pl;
-    std::vector<Real>  Dcorr;
-    std::vector<Vec2f> Fadv;
-    std::vector<Vec2f> Fp;
+    std::vector<Real>  _Psi;
+    std::vector<Vec2f> _Dii;
+    std::vector<Real>  _Aii;
+    std::vector<Vec2f> _sumDijPj;
+    std::vector<Vec2f> _Vadv;
+    std::vector<Real>  _Dadv;
+    std::vector<Real>  _Pl;
+    std::vector<Real>  _Dcorr;
+    std::vector<Vec2f> _Fadv;
+    std::vector<Vec2f> _Fp;
 
     // neigboring structures
     std::vector< std::vector<Index> > _fGrid;
@@ -144,12 +141,12 @@ private:
 
 
     // visualization
-    glm::vec3 wallColor  = { 195 / 255.0f,  50 / 255.0f,  30 / 255.0f };
-    glm::vec3 lightColor = { 213 / 255.0f, 240 / 255.0f, 255 / 255.0f };
-    glm::vec3 denseColor = {   2 / 255.0f,  73 / 255.0f, 113 / 255.0f };
-    glm::vec3 redColor   = { 255 / 255.0f,   0 / 255.0f,   0 / 255.0f };
-    glm::vec3 greenColor = {   0 / 255.0f, 255 / 255.0f,   0 / 255.0f };
-    glm::vec3 pinkColor  = { 255 / 255.0f,   0 / 255.0f, 255 / 255.0f };
+    Vec3f _wallColor  = { 195 / 255.0f,  50 / 255.0f,  30 / 255.0f };
+    Vec3f _lightColor = {  79 / 255.0f, 132 / 255.0f, 237 / 255.0f };
+    Vec3f _denseColor = {  10 / 255.0f,  47 / 255.0f, 119 / 255.0f };
+    Vec3f _redColor   = { 255 / 255.0f,   0 / 255.0f,   0 / 255.0f };
+    Vec3f _greenColor = {   0 / 255.0f, 255 / 255.0f,   0 / 255.0f };
+    Vec3f _pinkColor  = { 255 / 255.0f,   0 / 255.0f, 255 / 255.0f };
 
 
     // simulation
