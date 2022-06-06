@@ -14,4 +14,5 @@ Implicit Incompressible SPH (Smoothed Particle Hydrodynamics) model using the Vu
 ### Surface reconstruction
 <p float="center">
   <img src="https://github.com/GabFrancon/IISPH/blob/main/results/sim3D_surface_1.gif" width=400/>
+  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/sim3D_surface_2.gif" width=400/>
  </p>
