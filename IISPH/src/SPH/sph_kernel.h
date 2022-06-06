@@ -56,3 +56,21 @@ private:
     Real _h, _sr, _c[3], _gc[3];
 };
 
+
+class SimpleKernel {
+public:
+    SimpleKernel(const Real h = 1) {
+        _h = h;
+    }
+
+    Real k(const Real s) const {
+        return std::max(0.0f, cube(1e0 - square(s)) / (2 * _h));
+    }
+
+    Real W(const Vec2f& rij) const { return k(rij.length()); }
+    Real W(const Vec3f& rij) const { return k(rij.length()); }
+
+private:
+    Real _h;
+};
+

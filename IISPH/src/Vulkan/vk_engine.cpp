@@ -172,8 +172,8 @@ void VulkanEngine::initInterface() {
     createWindow();
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     glfwSetKeyCallback(window, keyboardCallback);
-    glfwSetCursorPosCallback(window, mouseCallback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    //glfwSetCursorPosCallback(window, mouseCallback);
+    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 void VulkanEngine::createWindow() {
@@ -205,6 +205,9 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
     else if (key == GLFW_KEY_R && action == GLFW_PRESS) {
         engine->recordingModeOn = !engine->recordingModeOn;
     }
+    else if (key == GLFW_KEY_J && action == GLFW_PRESS) {
+        engine->showSurface = !engine->showSurface;
+    }
     else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
@@ -213,7 +216,7 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
             << "        V ---> activate/deactivate wireframe view\n"
             << "        T ---> start/stop the timer\n"
             << "        R ---> activate/deactivate recording mode\n"
-            << "        P ---> activate/deactivate panorama view\n"
+            << "        J ---> show/hide reconstructed surface\n"
             << "        H ---> get help for hot keys\n"
             << "        ESC -> close window\n"
             << std::endl;
@@ -239,6 +242,8 @@ void VulkanEngine::mouseCallback(GLFWwindow* window, double xpos, double ypos)
     lastX = xpos;
     lastY = ypos;
 }
+
+
 
 // Vulkan core
 void VulkanEngine::initContext() {
@@ -590,6 +595,26 @@ void VulkanEngine::switchViewMode() {
         renderables[i].material = material;
 }
 
+void VulkanEngine::generateMeshSurface() {
+    const POINT3D* vertices = sphSolver.vertices();
+    const VECTOR3D* normals = sphSolver.normals();
+    const unsigned int* indices = sphSolver.indices();
+
+    Mesh surface{ &context };
+
+    for (int i = 0; i < sphSolver.verticesCount(); i++) {
+        Vertex vertex{};
+        vertex.position = { vertices[i][0], vertices[i][1], vertices[i][2] };
+        vertex.normal = { normals[i][0], normals[i][1], normals[i][2] };
+        vertex.texCoord = { 0.0f, 0.0f };
+
+        surface.vertices.push_back(vertex);
+    }
+
+    surface.indices.assign(indices, indices + sphSolver.indicesCount());
+    meshes["surface"] = surface;
+}
+
 Texture* VulkanEngine::getTexture(const std::string& name)
 {
     auto it = textures.find(name);
@@ -625,26 +650,32 @@ Material* VulkanEngine::getMaterial(const std::string& name) {
 void VulkanEngine::initScene() {
     // init SPH logic
     sphSolver = IISPHsolver3D();
-    Vec3i gridDim  = Vec3i(25, 40, 25);
-    Vec3i fluidDim = Vec3i(12, 12, 12);
+    Vec3i gridDim  = Vec3i(22, 40, 22);
+    Vec3i fluidDim = Vec3i(6, 10, 20);
     sphSolver.init(gridDim, fluidDim);
 
-    float epsilon = 0.21f;
-    float sizeX = sphSolver.sizeX() - 2.0f;
-    float sizeY = sphSolver.sizeY() - 2.0f;
-    float sizeZ = sphSolver.sizeZ() - 2.0f;
-
-    // init scene
+    // init scene parameters
     sceneInfo = SceneInfo();
     sceneInfo.lightPosition = glm::vec3(-20.0f, 80.0f, 20.0f);
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    float coeff = 1.75f;
-    camera = Camera(glm::vec3(sphSolver.sizeX() * coeff, sphSolver.sizeY() / coeff, sphSolver.sizeZ() * coeff), glm::vec3(0.0f, 1.0f, 0.0f), -20.0f, -135.0f);
+    camera = Camera(glm::vec3(37, 20, 37), glm::vec3(0.0f, 1.0f, 0.0f), -20.0f, -135.0f);
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
+    // init render objects
+    initParticles();
+    initSurface();
+    initRoom();
+
+    std::cout
+        << "number of fluid particles    : " << sphSolver.fluidCount()    << "\n"
+        << "number of surface vertices   : " << sphSolver.verticesCount() << "\n"
+        << std::endl;
+}
+
+void VulkanEngine::initParticles() {
     Vec3f p{}, c{};
     glm::vec3 position{}, color{}, size{}, rotationAxis(0.0f, 1.0f, 0.0f);
     float angle = 0.0f;
@@ -653,9 +684,9 @@ void VulkanEngine::initScene() {
     for (int i = 0; i < sphSolver.fluidCount(); i++) {
         p = sphSolver.fluidPosition(i) - 1.0f;
         c = sphSolver.fluidColor(i);
-        position   = glm::vec3(p.x, p.y, p.z);
+        position = glm::vec3(p.x, p.y, p.z);
         color = glm::vec3(c.x, c.y, c.z);
-        size = glm::vec3(0.2f);
+        size = glm::vec3(0.15f);
 
         RenderObject fluidParticle{};
         fluidParticle.mesh = getMesh("sphere");
@@ -665,16 +696,34 @@ void VulkanEngine::initScene() {
 
         renderables.push_back(fluidParticle);
     }
-    
-    std::cout
-        << "number of fluid particles    : " << sphSolver.fluidCount() << "\n"
-        << "number of boundary particles : " << sphSolver.boundaryCount() << "\n"
-        << std::endl;
+}
+
+void VulkanEngine::initSurface() {
+    generateMeshSurface();
+    getMesh("surface")->upload(commandPool);
+
+    RenderObject surface{};
+    surface.mesh = getMesh("surface");
+    surface.material = getMaterial("particle");
+    surface.modelMatrix = glm::mat4(1.0f);
+    surface.albedoColor = glm::vec3(16 / 255.0f, 62 / 255.0f, 179 / 255.0f);
+
+    renderables.push_back(surface);
+}
+
+void VulkanEngine::initRoom() {
+    float epsilon = 0.21f;
+    float sizeX = sphSolver.sizeX() - 2.0f;
+    float sizeY = sphSolver.sizeY() - 2.0f;
+    float sizeZ = sphSolver.sizeZ() - 2.0f;
+
+    glm::vec3 rotationAxis(0.0f, 1.0f, 0.0f);
+    float angle = 0.0f;
 
     // create support
     float height = 20.0f;
-    glm::vec3 supportPos  = glm::vec3(sizeX +     epsilon, -height - 2 * epsilon, sizeZ +     epsilon) / 2.0f;
-    glm::vec3 supportSize = glm::vec3(sizeX + 2 * epsilon,  height +     epsilon, sizeZ + 2 * epsilon) / 2.0f;
+    glm::vec3 supportPos = glm::vec3(sizeX + epsilon, -height - 2 * epsilon, sizeZ + epsilon) / 2.0f;
+    glm::vec3 supportSize = glm::vec3(sizeX + 2 * epsilon, height + epsilon, sizeZ + 2 * epsilon) / 2.0f;
 
     RenderObject support{};
     support.mesh = getMesh("cube");
@@ -686,8 +735,8 @@ void VulkanEngine::initScene() {
 
     // create back wall
     float width = 30.0f;
-    glm::vec3 wallPos  = glm::vec3(sizeX +     epsilon + width, sizeY - 2 * epsilon - height, sizeZ +     epsilon + width) / 2.0f;
-    glm::vec3 wallSize = glm::vec3(sizeX + 2 * epsilon + width, sizeY +     epsilon + height, sizeZ + 2 * epsilon + width) / 2.0f;
+    glm::vec3 wallPos = glm::vec3(sizeX + epsilon + width, sizeY - 2 * epsilon - height, sizeZ + epsilon + width) / 2.0f;
+    glm::vec3 wallSize = glm::vec3(sizeX + 2 * epsilon + width, sizeY + epsilon + height, sizeZ + 2 * epsilon + width) / 2.0f;
 
     RenderObject backWall{};
     backWall.mesh = getMesh("cube");
@@ -704,39 +753,55 @@ void VulkanEngine::updateScene() {
     lastClockTime = currentClockTime;
 
     // update camera
-    camera.processKeyboardInput(window, dt);
-          
+    //camera.processKeyboardInput(window, dt);
+
     if (!appTimerStopped) {
         appTimer += dt;
 
         //compute SPH logic
         sphSolver.update();
-        
-        Vec3f p{}, c{};
-        glm::vec3 position{}, color{}, size{}, rotationAxis(0.0f, 1.0f, 0.0f);
-        float angle = 0.0f;
 
-        // update fluid particles
-        for (int i = 0; i < sphSolver.fluidCount(); i++) {
-            p = sphSolver.fluidPosition(i) - 1.0f;
-            c = sphSolver.fluidColor(i);
-            position = glm::vec3(p.x, p.y, p.z);
-            color = glm::vec3(c.x, c.y, c.z);
-            size = glm::vec3(0.2f);
-
-            renderables[i].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-            renderables[i].albedoColor = color;
-        }
+        // update render objects
+        updateParticles();
+        updateSurface();
     }
 }
 
+void VulkanEngine::updateParticles() {
+    Vec3f p{}, c{};
+    glm::vec3 position{}, color{}, size{}, rotationAxis(0.0f, 1.0f, 0.0f);
+    float angle = 0.0f;
+
+    for (int i = 0; i < sphSolver.fluidCount(); i++) {
+        p = sphSolver.fluidPosition(i) - 1.0f;
+        c = sphSolver.fluidColor(i);
+        position = glm::vec3(p.x, p.y, p.z);
+        color = glm::vec3(c.x, c.y, c.z);
+        size = glm::vec3(0.15f);
+
+        renderables[i].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+        renderables[i].albedoColor = color;
+    }
+}
+
+void VulkanEngine::updateSurface() {
+    vkDeviceWaitIdle(context.device);
+    getMesh("surface")->destroy();
+
+    generateMeshSurface();
+    getMesh("surface")->upload(commandPool);
+    renderables[renderables.size() - 3].mesh = getMesh("surface");
+}
+
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
-    /*for (int i = 0; i < renderables.size(); i++) {
-        drawSingleObject(commandBuffer, i);
-    }*/
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
-    drawInstanced(commandBuffer, renderables[0], renderables.size() - 2);
+
+    if (showSurface)
+        drawSingleObject(commandBuffer, renderables.size() - 3);
+    else
+        drawInstanced(commandBuffer, renderables[0], sphSolver.fluidCount(), 0);
+
     drawSingleObject(commandBuffer, renderables.size() - 1); // back wall
 
     if(recordingModeOn && !appTimerStopped)
@@ -765,7 +830,7 @@ void VulkanEngine::drawSingleObject(VkCommandBuffer commandBuffer, int i) {
     vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object.mesh->indices.size()), 1, 0, 0, i);
 }
 
-void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount) {
+void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount, int firstInstance) {
     // bind shader pipeline
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.vkPipeline);
 
@@ -784,7 +849,7 @@ void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, RenderObject obj
 
     // draw object
     uint32_t indexCount = static_cast<uint32_t>(object.mesh->indices.size());
-    vkCmdDrawIndexed(commandBuffer, indexCount, instanceCount, 0, 0, 0);
+    vkCmdDrawIndexed(commandBuffer, indexCount, instanceCount, 0, 0, firstInstance);
 }
 
 

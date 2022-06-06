@@ -18,7 +18,7 @@
 static const uint32_t WIDTH  = 1600;
 static const uint32_t HEIGHT = 1200;
 
-static const int MAX_OBJECTS_RENDERED  = 80000;
+static const int MAX_OBJECTS_RENDERED  = 100000;
 static const int MAX_MATERIALS_CREATED = 10;
 static const int MAX_FRAMES_IN_FLIGHT  = 2;
 
@@ -104,6 +104,7 @@ private:
     bool recordingModeOn    = false;
     bool framebufferResized = false;
     bool wireframeViewOn    = false;
+    bool showSurface        = false;
 
 
 
@@ -142,16 +143,24 @@ private:
     void      loadMeshes();
     void      createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline);
     void      switchViewMode();
+    void      generateMeshSurface();
     Texture*  getTexture(const std::string& name);
     Mesh*     getMesh(const std::string& name);
     Material* getMaterial(const std::string& name);
 
     // Scene Rendering
     void initScene();
+    void initParticles();
+    void initSurface();
+    void initRoom();
+
     void updateScene();
+    void updateParticles();
+    void updateSurface();
+
     void renderScene(VkCommandBuffer commandBuffer);
     void drawSingleObject(VkCommandBuffer commandBuffer, int i);
-    void drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount);
+    void drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount, int firstInstance);
 
     // Exportation
     void savesFrames();

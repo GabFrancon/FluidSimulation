@@ -3,6 +3,8 @@
 #include "sph_kernel.h"
 #include "sph_grid.h"
 
+#include "../Surface/IsoSurface.h"
+
 #include <numeric>
 #include <algorithm>
 #include <vector>
@@ -35,6 +37,7 @@ public:
     void init(Vec3i gridSize, Vec3i fluidSize);
     void sampleFluidCube(Vec3i bottomLeft, Vec3i topRight);
     void sampleBoundaryCube(Vec3i bottomLeft, Vec3i topRight);
+    void sampleSurfaceNodes(Vec3i bottomLeft, Vec3i topRight);
     void update();
 
     const inline Index  fluidCount() const { return _fluidCount; }
@@ -45,19 +48,28 @@ public:
     const inline Vec3f& boundaryPosition(const Index i) const { return _bPosition[i]; }
     const inline Vec3f& boundaryColor(const Index i) const { return _bColor[i]; }
 
-    const inline int sizeX() const { return _gridHelper.sizeX(); }
-    const inline int sizeY() const { return _gridHelper.sizeY(); }
-    const inline int sizeZ() const { return _gridHelper.sizeZ(); }
+    const inline int sizeX() const { return _pGridHelper.sizeX(); }
+    const inline int sizeY() const { return _pGridHelper.sizeY(); }
+    const inline int sizeZ() const { return _pGridHelper.sizeZ(); }
+
+    const inline Index verticesCount() const { return _isoSurface.m_nVertices; }
+    const inline Index normalsCount()  const { return _isoSurface.m_nNormals; }
+    const inline Index indicesCount()  const { return _isoSurface.m_nTriangles * 3; }
+
+    const inline POINT3D*      vertices() const { return _isoSurface.m_ppt3dVertices; }
+    const inline VECTOR3D*     normals()  const { return _isoSurface.m_pvec3dNormals; }
+    const inline unsigned int* indices()  const { return _isoSurface.m_piTriangleIndices; }
+
 
 private:
     /*--------------------------------------------Main functions--------------------------------------------------*/
 
     void buildNeighborGrid();
     void searchNeighbors();
-
     void predictAdvection();
     void pressureSolve();
     void integration();
+    void surfaceReconstruction();
 
 
     /*-------------------------------------------Neighbor search------------------------------------------------*/
@@ -68,7 +80,7 @@ private:
     void  findBoundaryNeighbors(std::vector< Index >& neighbors, Vec3f position, const float radius);
 
 
-    /*------------------------------------------Fluid simulation-------------------------------------------------*/
+    /*-----------------------------------------Particle simulation------------------------------------------------*/
 
     void computePsi(int i);
     void computeDensity(int i);
@@ -91,6 +103,12 @@ private:
     void updatePosition(int i);
 
 
+    /*---------------------------------------Surface reconstruction----------------------------------------------*/
+
+    void computeSignedDistance(int i, const float radius);
+    void generateSurface();
+
+
     /*----------------------------------------Debug / visualization-----------------------------------------------*/
 
     void visualizeFluidDensity();
@@ -101,8 +119,9 @@ private:
 
     /*-------------------------------------------Class members---------------------------------------------------*/
 
-    // smooth kernel
-    CubicSpline _kernel;
+    // smooth kernels
+    CubicSpline  _pKernel;
+    SimpleKernel _sKernel;
 
     // fluid particles data
     std::vector<Vec3f> _fPosition;
@@ -115,6 +134,10 @@ private:
     std::vector<Vec3f> _bPosition;
     std::vector<Vec3f> _bColor;
 
+    // surface data
+    IsoSurface<Real>   _isoSurface;
+    std::vector<Vec3f> _sNodes;
+
     // temporary data
     std::vector<Real>  _Psi;
     std::vector<Vec3f> _Dii;
@@ -126,14 +149,16 @@ private:
     std::vector<Real>  _Dcorr;
     std::vector<Vec3f> _Fadv;
     std::vector<Vec3f> _Fp;
+    std::vector<Real>  _Phi;
 
     // neigboring structures
-    GridHelper _gridHelper;
+    GridHelper _pGridHelper;
+    GridHelper _sGridHelper;
     std::vector< std::vector<Index> > _fGrid;
     std::vector< std::vector<Index> > _fNeighbors;
+    std::vector< std::vector<Index> > _sNeighbors;
     std::vector< std::vector<Index> > _bGrid;
     std::vector< std::vector<Index> > _bNeighbors;
-
 
     // visualization
     Vec3f _wallColor  = { 195 / 255.0f,  50 / 255.0f,  30 / 255.0f };
@@ -147,16 +172,17 @@ private:
     // simulation
     int  _fluidCount    = 0;      // number of fluid particles
     int  _boundaryCount = 0;      // number of boundary particles
+    int  _surfaceCount  = 0;      // number of surface nodes
     Real _avgDensity    = 0.0f;   // average density of fluid
 
     // SPH coefficients
-    Real _dt;                     // time step
-    Real _nu;                     // kinematic viscosity
-    Real _eta;                    // compressibility
-    Real _rho0;                   // rest density
-    Real _h;                      // particle spacing
+    Real  _dt;                    // time step
+    Real  _nu;                    // kinematic viscosity
+    Real  _eta;                   // compressibility
+    Real  _rho0;                  // rest density
+    Real  _h;                     // particle spacing
     Vec3f _g;                     // gravity
-    Real _m0;                     // rest mass
-    Real _omega;                  // Jacobi's relaxed coeff
+    Real  _m0;                    // rest mass
+    Real  _omega;                 // Jacobi's relaxed coeff
 };
 

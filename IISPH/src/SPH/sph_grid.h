@@ -16,7 +16,8 @@ public:
 
     const inline Vec3i resolution() const { return _gridRes; }
     const inline Vec3i size() const { return _gridRes * _cellSize; }
-    const inline int cellCount() const { return _gridRes.x * _gridRes.y * _gridRes.z; }
+    const inline int   cellCount() const { return _gridRes.x * _gridRes.y * _gridRes.z; }
+    const inline float cellSize() const { return _cellSize; }
 
     const inline int resX() const { return _gridRes.x; }
     const inline int resY() const { return _gridRes.y; }
