@@ -44,7 +44,6 @@ void IISPHsolver3D::init(Vec3i gridSize, Vec3i fluidSize) {
     _Dcorr    = std::vector<Real> (_fluidCount, 0.0f);
     _Fadv     = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
     _Fp       = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
-    _Phi      = std::vector<Real>(_surfaceCount, 0.0f);
 
     // init neighboring system
     _fGrid = std::vector<std::vector<Index>>((size_t)_pGridHelper.cellCount(), std::vector<Index>());
@@ -52,11 +51,11 @@ void IISPHsolver3D::init(Vec3i gridSize, Vec3i fluidSize) {
     buildNeighborGrid();
 
     _fNeighbors = std::vector<std::vector<Index>>(_fluidCount, std::vector<Index>());
-    _sNeighbors = std::vector<std::vector<Index>>(_surfaceCount, std::vector<Index>());
     _bNeighbors = std::vector<std::vector<Index>>(_fluidCount, std::vector<Index>());
     searchNeighbors();
 
     // init surface reconstruction (for vizualisation)
+    _scalarField = std::vector<Real>(_surfaceCount, 0.0f);
     surfaceReconstruction();
 
     // compute fluid and boundary density (for vizualisation)
@@ -269,9 +268,9 @@ void IISPHsolver3D::integration() {
 void IISPHsolver3D::surfaceReconstruction() {
 #pragma omp parallel for
     for (int i = 0; i < _surfaceCount; i++)
-        computeSignedDistance(i, 2.0f * _h);
+        computeScalarField(i, 2.0f * _h);
 
-    generateSurface();
+    generateIsoSurface();
 }
 
 
@@ -341,7 +340,7 @@ void IISPHsolver3D::findBoundaryNeighbors(std::vector< Index >& neighbors, Vec3f
 /*-----------------------------------------Particle simulation------------------------------------------------*/
 
 void IISPHsolver3D::computePsi(int i) {
-    _Psi[i] = 0.0f;
+    Real sumK = 0.0f;
     Vec3f pos_ij;
 
     std::vector<Index> boundaryNeighbors;
@@ -349,10 +348,10 @@ void IISPHsolver3D::computePsi(int i) {
 
     for (Index& j : boundaryNeighbors) {
         pos_ij = _bPosition[i] - _bPosition[j];
-        _Psi[i] += _pKernel.W(pos_ij);
+        sumK += _pKernel.W(pos_ij);
     }
 
-    _Psi[i] = _rho0 / _Psi[i];
+    _Psi[i] = _rho0 / sumK;
 }
 
 void IISPHsolver3D::computeDensity(int i) {
@@ -557,30 +556,28 @@ void IISPHsolver3D::updatePosition(int i) {
 
 /*---------------------------------------Surface reconstruction----------------------------------------------*/
 
-void IISPHsolver3D::computeSignedDistance(int i, const float radius) {
+void IISPHsolver3D::computeScalarField(int i, const float radius) {
     Vec3f sumX = Vec3f(0.0f);
     Real  sumK = 0.0f;
     Real  temp = 0.0f;
     Vec3f pos_ij;
 
-    size_t lastSize = _sNeighbors[i].size();
-    _sNeighbors[i].clear();
-    _sNeighbors[i].reserve(lastSize);
-    findFluidNeighbors(_sNeighbors[i], _sNodes[i], radius);
+    std::vector<Index> neighbors;
+    findFluidNeighbors(neighbors, _sNodes[i], radius);
 
-    for (Index& j : _sNeighbors[i]) {
+    for (Index& j : neighbors) {
         pos_ij = _sNodes[i] - _fPosition[j];
-        temp = _sKernel.W(pos_ij);
-        sumX += _fPosition[j] * temp;
-        sumK += temp;
+        temp   = _sKernel.W(pos_ij);
+        sumX  += _fPosition[j] * temp;
+        sumK  += temp;
     }
 
-    _Phi[i] = (_sNodes[i] - sumX / sumK).length() - _h / 2;
+    _scalarField[i] = (_sNodes[i] - sumX / sumK).length() - _h / 2;
 }
 
-void IISPHsolver3D::generateSurface() {
+void IISPHsolver3D::generateIsoSurface() {
     _isoSurface.GenerateSurface(
-        _Phi.data(), 0.0f,
+        _scalarField.data(), 0.0f,
         _sGridHelper.resX(), _sGridHelper.resY(), _sGridHelper.resZ(),
         _sGridHelper.cellSize(), _sGridHelper.cellSize(), _sGridHelper.cellSize()
     );

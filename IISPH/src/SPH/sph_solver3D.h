@@ -105,8 +105,8 @@ private:
 
     /*---------------------------------------Surface reconstruction----------------------------------------------*/
 
-    void computeSignedDistance(int i, const float radius);
-    void generateSurface();
+    void computeScalarField(int i, const float radius);
+    void generateIsoSurface();
 
 
     /*----------------------------------------Debug / visualization-----------------------------------------------*/
@@ -135,8 +135,9 @@ private:
     std::vector<Vec3f> _bColor;
 
     // surface data
-    IsoSurface<Real>   _isoSurface;
     std::vector<Vec3f> _sNodes;
+    std::vector<Real>  _scalarField;
+    IsoSurface<Real>   _isoSurface;
 
     // temporary data
     std::vector<Real>  _Psi;
@@ -149,14 +150,12 @@ private:
     std::vector<Real>  _Dcorr;
     std::vector<Vec3f> _Fadv;
     std::vector<Vec3f> _Fp;
-    std::vector<Real>  _Phi;
 
     // neigboring structures
     GridHelper _pGridHelper;
     GridHelper _sGridHelper;
     std::vector< std::vector<Index> > _fGrid;
     std::vector< std::vector<Index> > _fNeighbors;
-    std::vector< std::vector<Index> > _sNeighbors;
     std::vector< std::vector<Index> > _bGrid;
     std::vector< std::vector<Index> > _bNeighbors;
 
