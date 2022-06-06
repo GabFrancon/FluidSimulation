@@ -159,8 +159,8 @@ private:
     void updateSurface();
 
     void renderScene(VkCommandBuffer commandBuffer);
-    void drawSingleObject(VkCommandBuffer commandBuffer, int i);
-    void drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount, int firstInstance);
+    void drawSingleObject(VkCommandBuffer commandBuffer, int objectIndex);
+    void drawInstanced(VkCommandBuffer commandBuffer, int instanceCount, int firstInstance);
 
     // Exportation
     void savesFrames();

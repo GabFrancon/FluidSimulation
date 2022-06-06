@@ -172,8 +172,8 @@ void VulkanEngine::initInterface() {
     createWindow();
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     glfwSetKeyCallback(window, keyboardCallback);
-    //glfwSetCursorPosCallback(window, mouseCallback);
-    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetCursorPosCallback(window, mouseCallback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 void VulkanEngine::createWindow() {
@@ -558,22 +558,6 @@ void VulkanEngine::loadMeshes() {
     Mesh cube{ &context };
     cube.loadFromObj(CUBE_MODEL_PATH.c_str());
     meshes["cube"] = cube;
-    /*
-    std::vector<Mesh> faces = std::vector<Mesh>(6, Mesh( &context ));
-    for (int i = 0; i < 6; i++)
-        faces[i].vertices = cube.vertices;
-
-    for (int i = 0; i < 12; i++)
-        for (int j = 0; j < 3; j++) {
-            faces[i % 6].indices.push_back(cube.indices[3 * (size_t)i + j]);
-        }
-
-    meshes["bottom"] = faces[0];
-    meshes["top"] = faces[1];
-    meshes["right"] = faces[2];
-    meshes["front"] = faces[3];
-    meshes["left"] = faces[4];
-    meshes["back"] = faces[5];*/
 }
 
 void VulkanEngine::createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline) {    
@@ -650,8 +634,8 @@ Material* VulkanEngine::getMaterial(const std::string& name) {
 void VulkanEngine::initScene() {
     // init SPH logic
     sphSolver = IISPHsolver3D();
-    Vec3i gridDim  = Vec3i(22, 40, 22);
-    Vec3i fluidDim = Vec3i(6, 10, 20);
+    Vec3i gridDim  = Vec3i(30, 60, 30);
+    Vec3i fluidDim = Vec3i(15, 15, 15);
     sphSolver.init(gridDim, fluidDim);
 
     // init scene parameters
@@ -660,7 +644,7 @@ void VulkanEngine::initScene() {
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(37, 20, 37), glm::vec3(0.0f, 1.0f, 0.0f), -20.0f, -135.0f);
+    camera = Camera(glm::vec3(50, 28, 50), glm::vec3(0.0f, 1.0f, 0.0f), -20.0f, -135.0f);
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
@@ -753,7 +737,7 @@ void VulkanEngine::updateScene() {
     lastClockTime = currentClockTime;
 
     // update camera
-    //camera.processKeyboardInput(window, dt);
+    camera.processKeyboardInput(window, dt);
 
     if (!appTimerStopped) {
         appTimer += dt;
@@ -798,9 +782,9 @@ void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 
     if (showSurface)
-        drawSingleObject(commandBuffer, renderables.size() - 3);
+        drawSingleObject(commandBuffer, renderables.size() - 3); // surface
     else
-        drawInstanced(commandBuffer, renderables[0], sphSolver.fluidCount(), 0);
+        drawInstanced(commandBuffer, sphSolver.fluidCount(), 0); // particles
 
     drawSingleObject(commandBuffer, renderables.size() - 1); // back wall
 
@@ -808,8 +792,8 @@ void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
         savesFrames();
 }
 
-void VulkanEngine::drawSingleObject(VkCommandBuffer commandBuffer, int i) {
-    RenderObject& object = renderables[i];
+void VulkanEngine::drawSingleObject(VkCommandBuffer commandBuffer, int objectIndex) {
+    RenderObject& object = renderables[objectIndex];
 
     // bind shader pipeline
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.vkPipeline);
@@ -827,10 +811,12 @@ void VulkanEngine::drawSingleObject(VkCommandBuffer commandBuffer, int i) {
     vkCmdBindIndexBuffer(commandBuffer, object.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
     // draw object
-    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object.mesh->indices.size()), 1, 0, 0, i);
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(object.mesh->indices.size()), 1, 0, 0, objectIndex);
 }
 
-void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, RenderObject object, int instanceCount, int firstInstance) {
+void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, int instanceCount, int firstInstance) {
+    RenderObject& object = renderables[firstInstance];
+
     // bind shader pipeline
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.vkPipeline);
 
