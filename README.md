@@ -3,10 +3,15 @@ Implicit Incompressible SPH (Smoothed Particle Hydrodynamics) model using the Vu
 
 <br>
 
-### cubic splash simulation
-  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/SPH_sim3D_2.gif" width=700/>
+### Particle simulation
+<p float="center">
+  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/sim3D_particle_1.gif" width=400/>
+  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/sim3D_particle_2.gif" width=400/>
+</p>
 
 <br>
 
-### breaking dam simulation
-  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/SPH_sim3D_1.gif" width=700/>
+### Surface reconstruction
+<p float="center">
+  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/sim3D_surface_1.gif" width=400/>
+ </p>
