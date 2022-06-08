@@ -2,48 +2,54 @@
 
 /*--------------------------------------------Main functions--------------------------------------------------*/
 
-void IISPHsolver3D::init(Vec3i gridSize, Vec3i fluidSize) {
+void IISPHsolver3D::init() {
     // - create a grid of size gridSize
     // - init a fluid mass of size fluidSize
     // - each cell containing the fluid is sampled with 2x2 particles
-    _pGridHelper = GridHelper(2 * _h, gridSize);
+
+    // sample particles
+    Real pCellSize  = 2 * _h;
+    Vec3f gridSize  = Vec3f(10.0f, 25.0f, 15.0f);
+    Vec3f fluidSize = Vec3f(gridSize.x - 2 * pCellSize, 5.0f, gridSize.z - 2 * pCellSize);
+    _pGridHelper = GridHelper(pCellSize, gridSize);
     _pKernel = CubicSpline(_h, 3);
 
-    _sGridHelper = GridHelper(0.5f * _h, gridSize - 2);
+    _fPosition.clear();
+    sampleBasicFluid(Vec3f(pCellSize), fluidSize + pCellSize);
+    _fluidCount = _fPosition.size();
+
+    _bPosition.clear();
+    sampleBoundaryBox(Vec3f(0.0f), gridSize, 1);
+    _boundaryCount = _bPosition.size();
+    std::cout << _boundaryCount << std::endl;
+
+    // sample distance field
+    Real sCellSize  = _h / 2;
+    Vec3f fieldSize = gridSize;
+    _sGridHelper = GridHelper(sCellSize, fieldSize);
     _sKernel = SimpleKernel(_h);
 
-    // sample fluid mass
-    _fPosition.clear();
-    sampleFluidCube(Vec3i(1), fluidSize + 1);
-    _fluidCount = _fPosition.size();
-    _fColor = std::vector<Vec3f>(_fluidCount, _denseColor);
-
-    // sample boundaries
-    _bPosition.clear();
-    sampleBoundaryCube(Vec3i(0), gridSize);
-    _boundaryCount = _bPosition.size();
-    _bColor = std::vector<Vec3f>(_boundaryCount, _wallColor);
-
-    // sample nodes surface
-    _sNodes.clear();
-    sampleSurfaceNodes(Vec3i(1), gridSize);
-    _surfaceCount = _sNodes.size();
+    _sPosition.clear();
+    sampleDistanceField(Vec3f(0.0f), fieldSize);
+    _surfaceCount = _sPosition.size();
 
     // init other quantities
-    _fDensity  = std::vector<Real> (_fluidCount, 0.0f);
-    _fVelocity = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
-    _fPressure = std::vector<Real> (_fluidCount, 0.0f);
-
-    _Psi      = std::vector<Real> (_boundaryCount, 0.0f);
-    _Dii      = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
-    _Aii      = std::vector<Real> (_fluidCount, 0.0f);
-    _sumDijPj = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
-    _Vadv     = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
-    _Dadv     = std::vector<Real> (_fluidCount, 0.0f);
-    _Pl       = std::vector<Real> (_fluidCount, 0.0f);
-    _Dcorr    = std::vector<Real> (_fluidCount, 0.0f);
-    _Fadv     = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
-    _Fp       = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
+    _fDensity      = std::vector<Real> (_fluidCount, 0.0f);
+    _fVelocity     = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
+    _fPressure     = std::vector<Real> (_fluidCount, 0.0f);
+    _fColor        = std::vector<Vec3f>(_fluidCount, _denseColor);
+    _bColor        = std::vector<Vec3f>(_boundaryCount, _wallColor);
+    _distanceField = std::vector<Real>(_surfaceCount, 0.0f);
+    _Psi           = std::vector<Real> (_boundaryCount, 0.0f);
+    _Dii           = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
+    _Aii           = std::vector<Real> (_fluidCount, 0.0f);
+    _sumDijPj      = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
+    _Vadv          = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
+    _Dadv          = std::vector<Real> (_fluidCount, 0.0f);
+    _Pl            = std::vector<Real> (_fluidCount, 0.0f);
+    _Dcorr         = std::vector<Real> (_fluidCount, 0.0f);
+    _Fadv          = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
+    _Fp            = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
 
     // init neighboring system
     _fGrid = std::vector<std::vector<Index>>((size_t)_pGridHelper.cellCount(), std::vector<Index>());
@@ -54,15 +60,12 @@ void IISPHsolver3D::init(Vec3i gridSize, Vec3i fluidSize) {
     _bNeighbors = std::vector<std::vector<Index>>(_fluidCount, std::vector<Index>());
     searchNeighbors();
 
-    // init surface reconstruction (for vizualisation)
-    _scalarField = std::vector<Real>(_surfaceCount, 0.0f);
-    surfaceReconstruction();
-
-    // compute fluid and boundary density (for vizualisation)
+    // compute density number ones and for all
 #pragma omp parallel for
     for (int i = 0; i < _boundaryCount; i++)
         computePsi(i);
 
+    // visualize initial fluid density
 #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++)
         computeDensity(i);
@@ -70,102 +73,83 @@ void IISPHsolver3D::init(Vec3i gridSize, Vec3i fluidSize) {
     visualizeFluidDensity();
 }
 
-void IISPHsolver3D::sampleFluidCube(Vec3i bottomLeft, Vec3i topRight) {
-    for (int k = bottomLeft.z; k < topRight.z; k++)
-        for (int j = bottomLeft.y; j < topRight.y; j++)
-            for (int i = bottomLeft.x; i < topRight.x; i++) {
-                _fPosition.push_back(Vec3f(i + 0.25, j + 0.25, k + 0.25));
-                _fPosition.push_back(Vec3f(i + 0.75, j + 0.25, k + 0.25));
-                _fPosition.push_back(Vec3f(i + 0.25, j + 0.75, k + 0.25));
-                _fPosition.push_back(Vec3f(i + 0.75, j + 0.75, k + 0.25));
-                _fPosition.push_back(Vec3f(i + 0.25, j + 0.25, k + 0.75));
-                _fPosition.push_back(Vec3f(i + 0.75, j + 0.25, k + 0.75));
-                _fPosition.push_back(Vec3f(i + 0.25, j + 0.75, k + 0.75));
-                _fPosition.push_back(Vec3f(i + 0.75, j + 0.75, k + 0.75));
+void IISPHsolver3D::sampleBasicFluid(Vec3f bottomLeft, Vec3f topRight) {
+    Real offset25 = 0.25f * _pGridHelper.cellSize();
+    Real offset50 = 0.50f * _pGridHelper.cellSize();
+
+    for (float k = bottomLeft.z + offset25; k < topRight.z; k+= offset50)
+        for (float j = bottomLeft.y + offset25; j < topRight.y ; j+= offset50)
+            for (float i = bottomLeft.x + offset25; i < topRight.x; i+= offset50) {
+                _fPosition.push_back(Vec3f(i, j, k));
             }
 }
 
-void IISPHsolver3D::sampleBoundaryCube(Vec3i bottomLeft, Vec3i topRight) {
-    for (int i = bottomLeft.x; i < topRight.x; i++) 
-        for (int j = bottomLeft.y; j < topRight.y; j++) {
-            // back plane
-            _bPosition.push_back(Vec3f(i + 0.25, j + 0.25, bottomLeft.z + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.75, j + 0.25, bottomLeft.z + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.25, j + 0.75, bottomLeft.z + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.75, j + 0.75, bottomLeft.z + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.25, j + 0.25, bottomLeft.z + 0.75));
-            _bPosition.push_back(Vec3f(i + 0.75, j + 0.25, bottomLeft.z + 0.75));
-            _bPosition.push_back(Vec3f(i + 0.25, j + 0.75, bottomLeft.z + 0.75));
-            _bPosition.push_back(Vec3f(i + 0.75, j + 0.75, bottomLeft.z + 0.75));
-            
-            // front plane
-            _bPosition.push_back(Vec3f(i + 0.25, j + 0.25, topRight.z - 0.25));
-            _bPosition.push_back(Vec3f(i + 0.75, j + 0.25, topRight.z - 0.25));
-            _bPosition.push_back(Vec3f(i + 0.25, j + 0.75, topRight.z - 0.25));
-            _bPosition.push_back(Vec3f(i + 0.75, j + 0.75, topRight.z - 0.25));
-            _bPosition.push_back(Vec3f(i + 0.25, j + 0.25, topRight.z - 0.75));
-            _bPosition.push_back(Vec3f(i + 0.75, j + 0.25, topRight.z - 0.75));
-            _bPosition.push_back(Vec3f(i + 0.25, j + 0.75, topRight.z - 0.75));
-            _bPosition.push_back(Vec3f(i + 0.75, j + 0.75, topRight.z - 0.75));
-        }
+void IISPHsolver3D::sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness) {
+    Real offset25  = 0.25f * _pGridHelper.cellSize();
+    Real offset50  = 0.50f * _pGridHelper.cellSize();
+    Real offset75  = 0.75f * _pGridHelper.cellSize();
+    Real offset100 = 1.00f * _pGridHelper.cellSize();
+    
+    switch (thickness) {
+    case 1:
+        for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
+            for (float k = bottomLeft.z + offset50; k < topRight.z; k += offset50) {
+                _bPosition.push_back(Vec3f(i, bottomLeft.y + offset50, k)); // bottom
+                _bPosition.push_back(Vec3f(i, topRight.y - offset50, k)); // top
+            }
 
-    for (int i = bottomLeft.x; i < topRight.x; i++)
-        for (int k = bottomLeft.z; k < topRight.z; k++) {
-            // bottom plane
-            _bPosition.push_back(Vec3f(i + 0.25, bottomLeft.y + 0.25, k + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.75, bottomLeft.y + 0.25, k + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.25, bottomLeft.y + 0.25, k + 0.75));
-            _bPosition.push_back(Vec3f(i + 0.75, bottomLeft.y + 0.25, k + 0.75));
-            _bPosition.push_back(Vec3f(i + 0.25, bottomLeft.y + 0.75, k + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.75, bottomLeft.y + 0.75, k + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.25, bottomLeft.y + 0.75, k + 0.75));
-            _bPosition.push_back(Vec3f(i + 0.75, bottomLeft.y + 0.75, k + 0.75));
+        for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
+            for (float j = bottomLeft.y + offset50 + offset50; j < topRight.y - offset50; j += offset50) {
+                _bPosition.push_back(Vec3f(i, j, bottomLeft.z + offset50)); // back
+                _bPosition.push_back(Vec3f(i, j, topRight.z - offset50)); // front
+            }
 
-            // top plane
-            _bPosition.push_back(Vec3f(i + 0.25, topRight.y - 0.25, k + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.75, topRight.y - 0.25, k + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.25, topRight.y - 0.25, k + 0.75));
-            _bPosition.push_back(Vec3f(i + 0.75, topRight.y - 0.25, k + 0.75));
-            _bPosition.push_back(Vec3f(i + 0.25, topRight.y - 0.75, k + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.75, topRight.y - 0.75, k + 0.25));
-            _bPosition.push_back(Vec3f(i + 0.25, topRight.y - 0.75, k + 0.75));
-            _bPosition.push_back(Vec3f(i + 0.75, topRight.y - 0.75, k + 0.75));
-        }
+        for (float j = bottomLeft.y + offset50 + offset50; j < topRight.y - offset50; j += offset50)
+            for (float k = bottomLeft.z + offset50 + offset50; k < topRight.z - offset50; k += offset50) {
+                _bPosition.push_back(Vec3f(bottomLeft.x + offset50, j, k)); // left
+                _bPosition.push_back(Vec3f(topRight.x - offset50, j, k)); // right
+            }
+        break;
+        
+    case 2:
+        for (float i = bottomLeft.x + offset25; i < topRight.x; i += offset50)
+            for (float k = bottomLeft.z + offset25; k < topRight.z; k += offset50) {
+                _bPosition.push_back(Vec3f(i, bottomLeft.y + offset25, k)); // bottom
+                _bPosition.push_back(Vec3f(i, bottomLeft.y + offset75, k)); // bottom
+                _bPosition.push_back(Vec3f(i, topRight.y - offset25, k)); // top
+                _bPosition.push_back(Vec3f(i, topRight.y - offset75, k)); // top
+            }
 
-    for (int j = bottomLeft.y; j < topRight.y; j++)
-        for (int k = bottomLeft.z; k < topRight.z; k++) {
-            // left plane
-            _bPosition.push_back(Vec3f(bottomLeft.x + 0.25, j + 0.25, k + 0.25));
-            _bPosition.push_back(Vec3f(bottomLeft.x + 0.25, j + 0.75, k + 0.25));
-            _bPosition.push_back(Vec3f(bottomLeft.x + 0.25, j + 0.25, k + 0.75));
-            _bPosition.push_back(Vec3f(bottomLeft.x + 0.25, j + 0.75, k + 0.75));
-            _bPosition.push_back(Vec3f(bottomLeft.x + 0.75, j + 0.25, k + 0.25));
-            _bPosition.push_back(Vec3f(bottomLeft.x + 0.75, j + 0.75, k + 0.25));
-            _bPosition.push_back(Vec3f(bottomLeft.x + 0.75, j + 0.25, k + 0.75));
-            _bPosition.push_back(Vec3f(bottomLeft.x + 0.75, j + 0.75, k + 0.75));
+        for (float i = bottomLeft.x + offset25; i < topRight.x; i += offset50)
+            for (float j = bottomLeft.y + offset25 + offset100; j < topRight.y - offset100; j += offset50) {
+                _bPosition.push_back(Vec3f(i, j, bottomLeft.z + offset25)); // back
+                _bPosition.push_back(Vec3f(i, j, bottomLeft.z + offset75)); // back
+                _bPosition.push_back(Vec3f(i, j, topRight.z - offset25)); // front
+                _bPosition.push_back(Vec3f(i, j, topRight.z - offset75)); // front
+            }
 
-            // right plane
-            _bPosition.push_back(Vec3f(topRight.x - 0.25, j + 0.25, k + 0.25));
-            _bPosition.push_back(Vec3f(topRight.x - 0.25, j + 0.75, k + 0.25));
-            _bPosition.push_back(Vec3f(topRight.x - 0.25, j + 0.25, k + 0.75));
-            _bPosition.push_back(Vec3f(topRight.x - 0.25, j + 0.75, k + 0.75));
-            _bPosition.push_back(Vec3f(topRight.x - 0.75, j + 0.25, k + 0.25));
-            _bPosition.push_back(Vec3f(topRight.x - 0.75, j + 0.75, k + 0.25));
-            _bPosition.push_back(Vec3f(topRight.x - 0.75, j + 0.25, k + 0.75));
-            _bPosition.push_back(Vec3f(topRight.x - 0.75, j + 0.75, k + 0.75));
-        }
-
+        for (float j = bottomLeft.y + offset25 + offset100; j < topRight.y - offset100; j += offset50)
+            for (float k = bottomLeft.z + offset25 + offset100; k < topRight.z - offset100; k += offset50) {
+                _bPosition.push_back(Vec3f(bottomLeft.x + offset25, j, k)); // left
+                _bPosition.push_back(Vec3f(bottomLeft.x + offset75, j, k)); // left
+                _bPosition.push_back(Vec3f(topRight.x - offset25, j, k)); // right
+                _bPosition.push_back(Vec3f(topRight.x - offset75, j, k)); // right
+            }
+        break;
+    }
 }
 
-void IISPHsolver3D::sampleSurfaceNodes(Vec3i bottomLeft, Vec3i topRight) {
-    for (float k = bottomLeft.z; k <= topRight.z - 1; k += _sGridHelper.cellSize())
-        for (float j = bottomLeft.y; j <= topRight.y - 1; j += _sGridHelper.cellSize())
-            for (float i = bottomLeft.x; i <= topRight.x - 1; i += _sGridHelper.cellSize()) {
-                _sNodes.push_back(Vec3f(i, j, k));
+void IISPHsolver3D::sampleDistanceField(Vec3f bottomLeft, Vec3f topRight) {
+    Real offset100 = _sGridHelper.cellSize();
+
+    for (float k = bottomLeft.z; k <= topRight.z; k += offset100)
+        for (float j = bottomLeft.y; j <= topRight.y; j += offset100)
+            for (float i = bottomLeft.x; i <= topRight.x; i += offset100) {
+                _sPosition.push_back(Vec3f(i, j, k));
             }
 }
 
-void IISPHsolver3D::update() {
+void IISPHsolver3D::updateParticles() {
     buildNeighborGrid();
     searchNeighbors();
 
@@ -174,7 +158,14 @@ void IISPHsolver3D::update() {
     integration();
 
     visualizeFluidDensity();
-    surfaceReconstruction();
+}
+
+void IISPHsolver3D::reconstructSurface() {
+#pragma omp parallel for
+    for (int i = 0; i < _surfaceCount; i++)
+        computeDistanceField(i, 2.0f * _h);
+
+    generateIsoSurface();
 }
 
 void IISPHsolver3D::buildNeighborGrid() {
@@ -204,13 +195,13 @@ void IISPHsolver3D::searchNeighbors() {
         size_t lastFluidSize = _fNeighbors[i].size();
         _fNeighbors[i].clear();
         _fNeighbors[i].reserve(lastFluidSize);
-        findFluidNeighbors(_fNeighbors[i], _fPosition[i], 2.0f * _h);
+        findFluidNeighbors(_fNeighbors[i], _fPosition[i], 2 * _h);
 
         // search for boundary neighbor particles
         size_t lastBoundarySize = _bNeighbors[i].size();
         _bNeighbors[i].clear();
         _bNeighbors[i].reserve(lastBoundarySize);
-        findBoundaryNeighbors(_bNeighbors[i], _fPosition[i], 2.0f * _h);
+        findBoundaryNeighbors(_bNeighbors[i], _fPosition[i], 2 * _h);
     }
 }
 
@@ -263,14 +254,6 @@ void IISPHsolver3D::integration() {
         updateVelocity(i);
         updatePosition(i);
     }
-}
-
-void IISPHsolver3D::surfaceReconstruction() {
-#pragma omp parallel for
-    for (int i = 0; i < _surfaceCount; i++)
-        computeScalarField(i, 2.0f * _h);
-
-    generateIsoSurface();
 }
 
 
@@ -556,28 +539,28 @@ void IISPHsolver3D::updatePosition(int i) {
 
 /*---------------------------------------Surface reconstruction----------------------------------------------*/
 
-void IISPHsolver3D::computeScalarField(int i, const float radius) {
+void IISPHsolver3D::computeDistanceField(int i, const float radius) {
     Vec3f sumX = Vec3f(0.0f);
     Real  sumK = 0.0f;
     Real  temp = 0.0f;
     Vec3f pos_ij;
 
     std::vector<Index> neighbors;
-    findFluidNeighbors(neighbors, _sNodes[i], radius);
+    findFluidNeighbors(neighbors, _sPosition[i], radius);
 
     for (Index& j : neighbors) {
-        pos_ij = _sNodes[i] - _fPosition[j];
+        pos_ij = _sPosition[i] - _fPosition[j];
         temp   = _sKernel.W(pos_ij);
         sumX  += _fPosition[j] * temp;
         sumK  += temp;
     }
 
-    _scalarField[i] = (_sNodes[i] - sumX / sumK).length() - _h / 2;
+    _distanceField[i] = (_sPosition[i] - sumX / sumK).length() - _h / 2;
 }
 
 void IISPHsolver3D::generateIsoSurface() {
     _isoSurface.GenerateSurface(
-        _scalarField.data(), 0.0f,
+        _distanceField.data(), 0.0f,
         _sGridHelper.resX(), _sGridHelper.resY(), _sGridHelper.resZ(),
         _sGridHelper.cellSize(), _sGridHelper.cellSize(), _sGridHelper.cellSize()
     );
@@ -658,3 +641,58 @@ void IISPHsolver3D::debugCrash(int i) {
     std::cout << "---------------------------------------------\n\n" << std::endl;
 }
 
+
+
+/*--------------------------------------------In development---------------------------------------------------*/
+
+void concat(std::vector<Vec3f>& vector1, std::vector<Vec3f>& vector2) {
+    vector1.insert(vector1.end(), vector2.begin(), vector2.end());
+}
+
+std::vector<Vec3f> triangle_to_set_of_points(Vec3f p1, Vec3f p2, Vec3f p3, Real particle_radius) {
+    Vec3f bary = (p1 + p2 + p3) / 3; // barycenter
+    Real a = (p2 - p1).length();
+    Real b = (p3 - p2).length();
+    Real c = (p3 - p1).length();
+    Real p = a + b + c;
+    Real S = sqrt((p - a) * (p - b) * (p - c) / p);
+    Real r = 2 * S / p;
+
+    std::vector<Vec3f> points = std::vector<Vec3f>();
+
+    if (particle_radius < r / 2) { // triangle is big enough
+        std::vector<Vec3f> points1 = triangle_to_set_of_points(p1, p2, bary, particle_radius);
+        std::vector<Vec3f> points2 = triangle_to_set_of_points(p1, p3, bary, particle_radius);
+        std::vector<Vec3f> points3 = triangle_to_set_of_points(p2, p3, bary, particle_radius);
+
+        concat(points, points1);
+        concat(points, points2);
+        concat(points, points3);
+
+        points.push_back(bary);
+
+        return points;
+    }
+
+    return {};
+}
+
+std::vector<Vec3f> mesh_to_set_of_points(std::vector<Vec3f> points, std::vector<Index> triangles, Real particle_radius) {
+    std::vector<Vec3f> r_points = std::vector<Vec3f>();
+
+    for (Index t = 0; t < triangles.size(); t += 3) {
+        Vec3f p1 = points[triangles[t]];
+        Vec3f p2 = points[triangles[t + 1]];
+        Vec3f p3 = points[triangles[t + 2]];
+
+        std::vector<Vec3f> new_points = triangle_to_set_of_points(p1, p2, p3, particle_radius);
+        concat(r_points, new_points);
+    }
+
+    return r_points;
+}
+
+void IISPHsolver3D::sampleMesh(std::vector<Vec3f> vertices, std::vector<Index> indices) {
+    std::vector<Vec3f> particles = mesh_to_set_of_points(vertices, indices, _h);
+    concat(_bPosition, particles);
+}

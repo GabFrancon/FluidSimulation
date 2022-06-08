@@ -207,6 +207,8 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
     }
     else if (key == GLFW_KEY_J && action == GLFW_PRESS) {
         engine->showSurface = !engine->showSurface;
+        if (engine->showSurface)
+            engine->updateSurface();
     }
     else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
@@ -580,17 +582,17 @@ void VulkanEngine::switchViewMode() {
 }
 
 void VulkanEngine::generateMeshSurface() {
-    const POINT3D* vertices = sphSolver.vertices();
-    const VECTOR3D* normals = sphSolver.normals();
+    sphSolver.reconstructSurface();
+
+    const POINT3D* vertices     = sphSolver.vertices();
+    const VECTOR3D* normals     = sphSolver.normals();
     const unsigned int* indices = sphSolver.indices();
 
     Mesh surface{ &context };
-
     for (int i = 0; i < sphSolver.verticesCount(); i++) {
         Vertex vertex{};
         vertex.position = { vertices[i][0], vertices[i][1], vertices[i][2] };
         vertex.normal = { normals[i][0], normals[i][1], normals[i][2] };
-        vertex.texCoord = { 0.0f, 0.0f };
 
         surface.vertices.push_back(vertex);
     }
@@ -633,18 +635,27 @@ Material* VulkanEngine::getMaterial(const std::string& name) {
 // Scene
 void VulkanEngine::initScene() {
     // init SPH logic
-    sphSolver = IISPHsolver3D();
-    Vec3i gridDim  = Vec3i(30, 60, 30);
-    Vec3i fluidDim = Vec3i(15, 15, 15);
-    sphSolver.init(gridDim, fluidDim);
+    Real spacing = 1.0f / 2; // must be of the form "1 / 2^p"
+    sphSolver = IISPHsolver3D(spacing);
+    sphSolver.init();
 
+    /*Mesh* mesh = getMesh("sphere");
+    std::vector<Vec3f> vertices = std::vector<Vec3f>();
+    std::vector<Index> indices = std::vector<Index>();
+
+    for (const Vertex& v : mesh->vertices)
+        vertices.push_back(Vec3f(v.position.x + 5.0f, v.position.y + 15.0f, v.position.z + 5.0f));
+
+    for (int i : mesh->indices)
+        indices.push_back(i);*/    
+    
     // init scene parameters
     sceneInfo = SceneInfo();
     sceneInfo.lightPosition = glm::vec3(-20.0f, 80.0f, 20.0f);
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(50, 28, 50), glm::vec3(0.0f, 1.0f, 0.0f), -20.0f, -135.0f);
+    camera = Camera(glm::vec3(22, 18, 22), glm::vec3(0.0f, 1.0f, 0.0f), -30.0f, -135.0f); 
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
@@ -655,22 +666,23 @@ void VulkanEngine::initScene() {
 
     std::cout
         << "number of fluid particles    : " << sphSolver.fluidCount()    << "\n"
+        << "number of boundary particles : " << sphSolver.boundaryCount() << "\n"
         << "number of surface vertices   : " << sphSolver.verticesCount() << "\n"
         << std::endl;
 }
 
 void VulkanEngine::initParticles() {
     Vec3f p{}, c{};
-    glm::vec3 position{}, color{}, size{}, rotationAxis(0.0f, 1.0f, 0.0f);
-    float angle = 0.0f;
+    glm::vec3 position{}, color{}, size(sphSolver.particleSpacing() / 3.0f), rotationAxis(0.0f, 1.0f, 0.0f);
+    float angle(0.0f);
 
     // create fluid particles
     for (int i = 0; i < sphSolver.fluidCount(); i++) {
-        p = sphSolver.fluidPosition(i) - 1.0f;
+        p = sphSolver.fluidPosition(i) - sphSolver.cellSize();
         c = sphSolver.fluidColor(i);
+
         position = glm::vec3(p.x, p.y, p.z);
         color = glm::vec3(c.x, c.y, c.z);
-        size = glm::vec3(0.15f);
 
         RenderObject fluidParticle{};
         fluidParticle.mesh = getMesh("sphere");
@@ -680,34 +692,53 @@ void VulkanEngine::initParticles() {
 
         renderables.push_back(fluidParticle);
     }
+
+    // create boundary particles
+    for (int i = 0; i < sphSolver.boundaryCount(); i++) {
+        p = sphSolver.boundaryPosition(i) - sphSolver.cellSize();
+        c = sphSolver.boundaryColor(i);
+
+        position = glm::vec3(p.x, p.y, p.z);
+        color = glm::vec3(c.x, c.y, c.z);
+
+        RenderObject boundaryParticle{};
+        boundaryParticle.mesh = getMesh("sphere");
+        boundaryParticle.material = getMaterial("particle");
+        boundaryParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+        boundaryParticle.albedoColor = color;
+
+        renderables.push_back(boundaryParticle);
+    }
 }
 
 void VulkanEngine::initSurface() {
     generateMeshSurface();
     getMesh("surface")->upload(commandPool);
 
+    float angle(0.0f);
+    glm::vec3 position(-sphSolver.cellSize()), color(16 / 255.0f, 62 / 255.0f, 179 / 255.0f), size(1.0f), rotationAxis(0.0f, 1.0f, 0.0f);
+
     RenderObject surface{};
     surface.mesh = getMesh("surface");
     surface.material = getMaterial("particle");
-    surface.modelMatrix = glm::mat4(1.0f);
+    surface.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
     surface.albedoColor = glm::vec3(16 / 255.0f, 62 / 255.0f, 179 / 255.0f);
 
     renderables.push_back(surface);
 }
 
 void VulkanEngine::initRoom() {
-    float epsilon = 0.21f;
-    float sizeX = sphSolver.sizeX() - 2.0f;
-    float sizeY = sphSolver.sizeY() - 2.0f;
-    float sizeZ = sphSolver.sizeZ() - 2.0f;
+    float sizeX = sphSolver.sizeX() - 2 * sphSolver.cellSize();
+    float sizeY = sphSolver.sizeY() - 2 * sphSolver.cellSize();
+    float sizeZ = sphSolver.sizeZ() - 2 * sphSolver.cellSize();
 
     glm::vec3 rotationAxis(0.0f, 1.0f, 0.0f);
     float angle = 0.0f;
 
     // create support
     float height = 20.0f;
-    glm::vec3 supportPos = glm::vec3(sizeX + epsilon, -height - 2 * epsilon, sizeZ + epsilon) / 2.0f;
-    glm::vec3 supportSize = glm::vec3(sizeX + 2 * epsilon, height + epsilon, sizeZ + 2 * epsilon) / 2.0f;
+    glm::vec3 supportPos  = glm::vec3(sizeX,-height, sizeZ) / 2.0f;
+    glm::vec3 supportSize = glm::vec3(sizeX, height, sizeZ) / 2.0f;
 
     RenderObject support{};
     support.mesh = getMesh("cube");
@@ -719,8 +750,8 @@ void VulkanEngine::initRoom() {
 
     // create back wall
     float width = 30.0f;
-    glm::vec3 wallPos = glm::vec3(sizeX + epsilon + width, sizeY - 2 * epsilon - height, sizeZ + epsilon + width) / 2.0f;
-    glm::vec3 wallSize = glm::vec3(sizeX + 2 * epsilon + width, sizeY + epsilon + height, sizeZ + 2 * epsilon + width) / 2.0f;
+    glm::vec3 wallPos  = glm::vec3(sizeX + width, sizeY - height, sizeZ + width) / 2.0f;
+    glm::vec3 wallSize = glm::vec3(sizeX + width, sizeY + height, sizeZ + width) / 2.0f;
 
     RenderObject backWall{};
     backWall.mesh = getMesh("cube");
@@ -743,25 +774,27 @@ void VulkanEngine::updateScene() {
         appTimer += dt;
 
         //compute SPH logic
-        sphSolver.update();
+        sphSolver.updateParticles();
 
         // update render objects
         updateParticles();
-        updateSurface();
+
+        if (showSurface)
+            updateSurface();
     }
 }
 
 void VulkanEngine::updateParticles() {
     Vec3f p{}, c{};
-    glm::vec3 position{}, color{}, size{}, rotationAxis(0.0f, 1.0f, 0.0f);
-    float angle = 0.0f;
+    glm::vec3 position{}, color{}, size(sphSolver.particleSpacing() / 3.0f), rotationAxis(0.0f, 1.0f, 0.0f);
+    float angle(0.0f);
 
     for (int i = 0; i < sphSolver.fluidCount(); i++) {
-        p = sphSolver.fluidPosition(i) - 1.0f;
+        p = sphSolver.fluidPosition(i) - sphSolver.cellSize();
         c = sphSolver.fluidColor(i);
+
         position = glm::vec3(p.x, p.y, p.z);
         color = glm::vec3(c.x, c.y, c.z);
-        size = glm::vec3(0.15f);
 
         renderables[i].modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
         renderables[i].albedoColor = color;
@@ -784,7 +817,7 @@ void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
     if (showSurface)
         drawSingleObject(commandBuffer, renderables.size() - 3); // surface
     else
-        drawInstanced(commandBuffer, sphSolver.fluidCount(), 0); // particles
+        drawInstanced(commandBuffer, sphSolver.fluidCount() + sphSolver.boundaryCount(), 0); // particles
 
     drawSingleObject(commandBuffer, renderables.size() - 1); // back wall
 
@@ -844,6 +877,9 @@ void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, int instanceCoun
 void VulkanEngine::savesFrames() {
     static int saveCount = 0;
     static int maxDigits = 6;
+
+    if(saveCount > 5999)
+        glfwSetWindowShouldClose(window, true);
 
     float val = saveCount;
     int leadingZeros = maxDigits - 1;

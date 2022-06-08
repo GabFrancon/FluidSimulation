@@ -9,13 +9,11 @@ public:
 
     GridHelper() {}
 
-    GridHelper(float cellSize, Vec3i dimensions) {
+    GridHelper(float cellSize, Vec3f dimensions) {
         _cellSize = cellSize;
         _gridRes = cellPos(dimensions);
     }
 
-    const inline Vec3i resolution() const { return _gridRes; }
-    const inline Vec3i size() const { return _gridRes * _cellSize; }
     const inline int   cellCount() const { return _gridRes.x * _gridRes.y * _gridRes.z; }
     const inline float cellSize() const { return _cellSize; }
 

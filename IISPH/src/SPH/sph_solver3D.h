@@ -14,7 +14,7 @@ class IISPHsolver3D
 {
 public:
     explicit IISPHsolver3D(
-        const Real h    = 0.5f,    // particle spacing
+        const Real h    = 0.5f,   // particle spacing
         const Real rho0 = 1e3f,    // rest density
         const Real nu   = 0.08f,   // kinematic viscosity
         const Real eta  = 0.01f)   // compressibility
@@ -26,19 +26,21 @@ public:
         _eta  = eta;
 
         // fixed constants
-        _dt = 0.02f;
-        _g  = Vec3f(0.0f, -9.8f, 0.0f);
+        _dt = 0.01f;
+        _g  = Vec3f(0.0f, -9.81f, 0.0f);
         _omega = 0.5f;
 
         // derived properties
         _m0 = _rho0 * cube(_h);
     }
 
-    void init(Vec3i gridSize, Vec3i fluidSize);
-    void sampleFluidCube(Vec3i bottomLeft, Vec3i topRight);
-    void sampleBoundaryCube(Vec3i bottomLeft, Vec3i topRight);
-    void sampleSurfaceNodes(Vec3i bottomLeft, Vec3i topRight);
-    void update();
+    void init();
+    void sampleBasicFluid(Vec3f bottomLeft, Vec3f topRight);
+    void sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness);
+    void sampleDistanceField(Vec3f bottomLeft, Vec3f topRight);
+    void sampleMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
+    void updateParticles();
+    void reconstructSurface();
 
     const inline Index  fluidCount() const { return _fluidCount; }
     const inline Vec3f& fluidPosition(const Index i) const { return _fPosition[i]; }
@@ -48,9 +50,11 @@ public:
     const inline Vec3f& boundaryPosition(const Index i) const { return _bPosition[i]; }
     const inline Vec3f& boundaryColor(const Index i) const { return _bColor[i]; }
 
-    const inline int sizeX() const { return _pGridHelper.sizeX(); }
-    const inline int sizeY() const { return _pGridHelper.sizeY(); }
-    const inline int sizeZ() const { return _pGridHelper.sizeZ(); }
+    const inline Real sizeX()    const { return _pGridHelper.sizeX(); }
+    const inline Real sizeY()    const { return _pGridHelper.sizeY(); }
+    const inline Real sizeZ()    const { return _pGridHelper.sizeZ(); }
+    const inline Real cellSize() const { return _pGridHelper.cellSize(); }
+    const inline Real particleSpacing() const { return _h; };
 
     const inline Index verticesCount() const { return _isoSurface.m_nVertices; }
     const inline Index normalsCount()  const { return _isoSurface.m_nNormals; }
@@ -59,7 +63,7 @@ public:
     const inline POINT3D*      vertices() const { return _isoSurface.m_ppt3dVertices; }
     const inline VECTOR3D*     normals()  const { return _isoSurface.m_pvec3dNormals; }
     const inline unsigned int* indices()  const { return _isoSurface.m_piTriangleIndices; }
-
+    
 
 private:
     /*--------------------------------------------Main functions--------------------------------------------------*/
@@ -69,7 +73,6 @@ private:
     void predictAdvection();
     void pressureSolve();
     void integration();
-    void surfaceReconstruction();
 
 
     /*-------------------------------------------Neighbor search------------------------------------------------*/
@@ -105,7 +108,7 @@ private:
 
     /*---------------------------------------Surface reconstruction----------------------------------------------*/
 
-    void computeScalarField(int i, const float radius);
+    void computeDistanceField(int i, const float radius);
     void generateIsoSurface();
 
 
@@ -135,8 +138,8 @@ private:
     std::vector<Vec3f> _bColor;
 
     // surface data
-    std::vector<Vec3f> _sNodes;
-    std::vector<Real>  _scalarField;
+    std::vector<Vec3f> _sPosition;
+    std::vector<Real>  _distanceField;
     IsoSurface<Real>   _isoSurface;
 
     // temporary data
