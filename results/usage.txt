@@ -2,4 +2,22 @@
 
 - run in the command line, with desired framerate and resolution :
 
-	$ ffmpeg -framerate 90 -i screenshots/frame_%6d.ppm -s 1600x1200 -pix_fmt yuv420p -vf fps=60 sim3D_surface_3.mp4
+	$ ffmpeg -framerate 120 -i screenshots/frame_%6d.ppm -s 1600x1200 -pix_fmt yuv420p -vf fps=60 breaking_dam_surface.mp4
+
+
+
+
+
+Data :
+
+breaking dam (with bunny boundary) :
+ 
+- fluid particles      =    59 136
+- boundary particles   =    54 621
+- distance field nodes = 6 327 937
+
+- h  = 0.25m
+- dt = 0.01s
+
+- computation time for particles = 1.2s / frame
+- computation time for surface   = 5.4s / frame

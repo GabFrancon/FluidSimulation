@@ -2,36 +2,21 @@
 
 /*--------------------------------------------Main functions--------------------------------------------------*/
 
-void IISPHsolver3D::init() {
-    // - create a grid of size gridSize
-    // - init a fluid mass of size fluidSize
-    // - each cell containing the fluid is sampled with 2x2 particles
-
-    // sample particles
-    Real pCellSize  = 2 * _h;
-    Vec3f gridSize  = Vec3f(10.0f, 25.0f, 15.0f);
-    Vec3f fluidSize = Vec3f(gridSize.x - 2 * pCellSize, 5.0f, gridSize.z - 2 * pCellSize);
-    _pGridHelper = GridHelper(pCellSize, gridSize);
-    _pKernel = CubicSpline(_h, 3);
-
-    _fPosition.clear();
-    sampleBasicFluid(Vec3f(pCellSize), fluidSize + pCellSize);
-    _fluidCount = _fPosition.size();
-
-    _bPosition.clear();
-    sampleBoundaryBox(Vec3f(0.0f), gridSize, 1);
+void IISPHsolver3D::prepare() {
+    // init counts
+    _fluidCount    = _fPosition.size();
     _boundaryCount = _bPosition.size();
-    std::cout << _boundaryCount << std::endl;
+    _surfaceCount  = _sPosition.size();
 
-    // sample distance field
-    Real sCellSize  = _h / 2;
-    Vec3f fieldSize = gridSize;
-    _sGridHelper = GridHelper(sCellSize, fieldSize);
+    std::cout << "\n"
+        << "number of fluid particles    : " << _fluidCount    << "\n"
+        << "number of boundary particles : " << _boundaryCount << "\n"
+        << "number of surface nodes      : " << _surfaceCount  << "\n"
+        << std::endl;
+
+    // init smooth kernels
+    _pKernel = CubicSpline(_h, 3);
     _sKernel = SimpleKernel(_h);
-
-    _sPosition.clear();
-    sampleDistanceField(Vec3f(0.0f), fieldSize);
-    _surfaceCount = _sPosition.size();
 
     // init other quantities
     _fDensity      = std::vector<Real> (_fluidCount, 0.0f);
@@ -39,7 +24,6 @@ void IISPHsolver3D::init() {
     _fPressure     = std::vector<Real> (_fluidCount, 0.0f);
     _fColor        = std::vector<Vec3f>(_fluidCount, _denseColor);
     _bColor        = std::vector<Vec3f>(_boundaryCount, _wallColor);
-    _distanceField = std::vector<Real>(_surfaceCount, 0.0f);
     _Psi           = std::vector<Real> (_boundaryCount, 0.0f);
     _Dii           = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
     _Aii           = std::vector<Real> (_fluidCount, 0.0f);
@@ -50,6 +34,7 @@ void IISPHsolver3D::init() {
     _Dcorr         = std::vector<Real> (_fluidCount, 0.0f);
     _Fadv          = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
     _Fp            = std::vector<Vec3f>(_fluidCount, Vec3f(0.0f));
+    _distanceField = std::vector<Real> (_surfaceCount, 0.0f);
 
     // init neighboring system
     _fGrid = std::vector<std::vector<Index>>((size_t)_pGridHelper.cellCount(), std::vector<Index>());
@@ -73,7 +58,7 @@ void IISPHsolver3D::init() {
     visualizeFluidDensity();
 }
 
-void IISPHsolver3D::sampleBasicFluid(Vec3f bottomLeft, Vec3f topRight) {
+void IISPHsolver3D::sampleFluidCube(Vec3f bottomLeft, Vec3f topRight) {
     Real offset25 = 0.25f * _pGridHelper.cellSize();
     Real offset50 = 0.50f * _pGridHelper.cellSize();
 
@@ -82,6 +67,38 @@ void IISPHsolver3D::sampleBasicFluid(Vec3f bottomLeft, Vec3f topRight) {
             for (float i = bottomLeft.x + offset25; i < topRight.x; i+= offset50) {
                 _fPosition.push_back(Vec3f(i, j, k));
             }
+}
+
+void IISPHsolver3D::sampleFluidBall(Vec3f center, Real radius) {
+    Real x{}, y{}, z{};
+
+
+    for (Real x = -2 *_h / 2; x < _h; x += _h / 2)
+        for (Real y = -2 *_h / 2; y < _h; y += _h / 2)
+            for (Real z = -1; z <= 1; z += _h)
+                _fPosition.push_back(radius * Vec3f(x, y, z) + center);
+
+    while (radius > _h / 2) {
+        Real off1 = 4 * _h / radius;
+
+        for (Real theta = off1; theta <= M_PI - off1; theta += _h / radius) {
+
+            Real coeff = std::abs(cos(2 * theta)) + 2.f;
+            Real step  = coeff * _h / radius;
+            Real off2 = step;
+
+            for (Real phi = 0; phi <= 2 * M_PI - step; phi += step) {
+
+                x = radius * sin(theta) * cos(phi);
+                y = radius * sin(theta) * sin(phi);
+                z = radius * cos(theta);
+
+                _fPosition.push_back(Vec3f(x, y, z) + center);
+            }
+        }
+
+        radius -= _h;
+    }
 }
 
 void IISPHsolver3D::sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness) {
@@ -589,10 +606,10 @@ void IISPHsolver3D::visualizeBoundaryDensity() {
 void IISPHsolver3D::visualizeFluidNeighbors(int i) {
 
     for (Index& j : _fNeighbors[i])
-        _fColor[_fNeighbors[i][j]] = _greenColor;
+        _fColor[j] = _greenColor;
 
     for (Index& j : _bNeighbors[i])
-        _bColor[_bNeighbors[i][j]] = _pinkColor;
+        _bColor[j] = _pinkColor;
 
     _fColor[i] = _redColor;
 }
@@ -651,16 +668,18 @@ void concat(std::vector<Vec3f>& vector1, std::vector<Vec3f>& vector2) {
 
 std::vector<Vec3f> triangle_to_set_of_points(Vec3f p1, Vec3f p2, Vec3f p3, Real particle_radius) {
     Vec3f bary = (p1 + p2 + p3) / 3; // barycenter
-    Real a = (p2 - p1).length();
-    Real b = (p3 - p2).length();
-    Real c = (p3 - p1).length();
-    Real p = a + b + c;
-    Real S = sqrt((p - a) * (p - b) * (p - c) / p);
-    Real r = 2 * S / p;
+    Real a = p2.distanceTo(p1);
+    Real b = p3.distanceTo(p2);
+    Real c = p1.distanceTo(p3);
+
+    Real p = a + b + c;                             // triangle perimeter
+    Real s = p / 2;                                 // semi-perimeter
+    Real A = sqrt(s * (s - a) * (s - b) * (s - c)); // triangle area
+    Real r = 2 * A / p;                             // inner circle radius
 
     std::vector<Vec3f> points = std::vector<Vec3f>();
 
-    if (particle_radius < r / 2) { // triangle is big enough
+    if (particle_radius < r ) { // triangle is big enough
         std::vector<Vec3f> points1 = triangle_to_set_of_points(p1, p2, bary, particle_radius);
         std::vector<Vec3f> points2 = triangle_to_set_of_points(p1, p3, bary, particle_radius);
         std::vector<Vec3f> points3 = triangle_to_set_of_points(p2, p3, bary, particle_radius);
@@ -693,6 +712,17 @@ std::vector<Vec3f> mesh_to_set_of_points(std::vector<Vec3f> points, std::vector<
 }
 
 void IISPHsolver3D::sampleMesh(std::vector<Vec3f> vertices, std::vector<Index> indices) {
-    std::vector<Vec3f> particles = mesh_to_set_of_points(vertices, indices, _h);
-    concat(_bPosition, particles);
+
+    std::vector<Vec3f> particles = mesh_to_set_of_points(vertices, indices, _h / 2);
+
+    if (particles.size() > 100) {
+        concat(_bPosition, particles);
+        std::cout << "mesh sampled with interpolation technic" << std::endl;
+    }
+    else {
+        for (int i = 0; i < vertices.size(); i+=20)
+                _bPosition.push_back(vertices[i]);
+
+        std::cout << "mesh sampled with subset of its vertices" << std::endl;
+    }
 }

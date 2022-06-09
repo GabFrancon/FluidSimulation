@@ -18,15 +18,16 @@
 static const uint32_t WIDTH  = 1600;
 static const uint32_t HEIGHT = 1200;
 
-static const int MAX_OBJECTS_RENDERED  = 100000;
+static const int MAX_OBJECTS_RENDERED  = 150000;
 static const int MAX_MATERIALS_CREATED = 10;
 static const int MAX_FRAMES_IN_FLIGHT  = 2;
 
-static const std::string SPHERE_MODEL_PATH  = "assets/models/sphere.obj";
-static const std::string CUBE_MODEL_PATH    = "assets/models/cube.obj";
+static const std::string SPHERE_MODEL_PATH = "assets/models/sphere.obj";
+static const std::string CUBE_MODEL_PATH   = "assets/models/cube.obj";
+static const std::string BUNNY_MODEL_PATH  = "assets/models/bunny.obj";
+static const std::string TOWER_MODEL_PATH  = "assets/models/tower.obj";
 
-static const std::string WATER_TEXTURE_PATH = "assets/textures/water.jpg";
-static const std::string GLASS_TEXTURE_PATH = "assets/textures/glass.jpg";
+static const std::string TOWER_TEXTURE_PATH = "assets/textures/tower.jpg";
 
 static const std::string BASIC_VERT_SHADER_PATH     = "shaders/basic_vert.spv";
 static const std::string INSTANCED_VERT_SHADER_PATH = "shaders/instanced_vert.spv";
@@ -150,6 +151,7 @@ private:
 
     // Scene Rendering
     void initScene();
+    void initSphSolver();
     void initParticles();
     void initSurface();
     void initRoom();

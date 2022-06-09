@@ -34,13 +34,17 @@ public:
         _m0 = _rho0 * cube(_h);
     }
 
-    void init();
-    void sampleBasicFluid(Vec3f bottomLeft, Vec3f topRight);
-    void sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness);
+    void prepare();
+    void sampleFluidCube(Vec3f bottomLeft, Vec3f topRight);
+    void sampleFluidBall(Vec3f center, Real radius);
+    void sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness = 1);
     void sampleDistanceField(Vec3f bottomLeft, Vec3f topRight);
     void sampleMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
     void updateParticles();
     void reconstructSurface();
+
+    inline void setParticleHelper(Real cellSize, Vec3f gridSize) { _pGridHelper = GridHelper(cellSize, gridSize); }
+    inline void setSurfaceHelper (Real cellSize, Vec3f gridSize) { _sGridHelper = GridHelper(cellSize, gridSize); }
 
     const inline Index  fluidCount() const { return _fluidCount; }
     const inline Vec3f& fluidPosition(const Index i) const { return _fPosition[i]; }
