@@ -26,6 +26,7 @@ static const std::string SPHERE_MODEL_PATH = "assets/models/sphere.obj";
 static const std::string CUBE_MODEL_PATH   = "assets/models/cube.obj";
 static const std::string BUNNY_MODEL_PATH  = "assets/models/bunny.obj";
 static const std::string TOWER_MODEL_PATH  = "assets/models/tower.obj";
+static const std::string SURFACE_MODEL_PATH = "assets/models/surface.obj";
 
 static const std::string TOWER_TEXTURE_PATH = "assets/textures/tower.jpg";
 
@@ -103,6 +104,7 @@ private:
     // Flags
     bool appTimerStopped    = true;
     bool recordingModeOn    = false;
+    bool saveSurfaceModeOn  = false;
     bool framebufferResized = false;
     bool wireframeViewOn    = false;
     bool showSurface        = false;
@@ -144,7 +146,7 @@ private:
     void      loadMeshes();
     void      createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline);
     void      switchViewMode();
-    void      generateMeshSurface();
+    void      generateMeshSurface(bool fromMemory = false);
     Texture*  getTexture(const std::string& name);
     Mesh*     getMesh(const std::string& name);
     Material* getMaterial(const std::string& name);
@@ -165,6 +167,7 @@ private:
     void drawInstanced(VkCommandBuffer commandBuffer, int instanceCount, int firstInstance);
 
     // Exportation
+    void saveSurfaceMeshes();
     void savesFrames();
     void saveScreenshot(const char* filename);
 };

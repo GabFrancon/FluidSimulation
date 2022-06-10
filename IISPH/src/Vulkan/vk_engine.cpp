@@ -172,8 +172,8 @@ void VulkanEngine::initInterface() {
     createWindow();
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     glfwSetKeyCallback(window, keyboardCallback);
-    glfwSetCursorPosCallback(window, mouseCallback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    //glfwSetCursorPosCallback(window, mouseCallback);
+    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 void VulkanEngine::createWindow() {
@@ -204,6 +204,19 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
     }
     else if (key == GLFW_KEY_R && action == GLFW_PRESS) {
         engine->recordingModeOn = !engine->recordingModeOn;
+
+        if(engine->recordingModeOn)
+            std::cout << "recording mode activated" << std::endl;
+        else
+            std::cout << "recording mode deactivated" << std::endl;
+    }
+    else if (key == GLFW_KEY_O && action == GLFW_PRESS) {
+        engine->saveSurfaceModeOn = !engine->saveSurfaceModeOn;
+
+        if (engine->saveSurfaceModeOn)
+            std::cout << "save surface mode activated" << std::endl;
+        else
+            std::cout << "save surface mode deactivated" << std::endl;
     }
     else if (key == GLFW_KEY_P && action == GLFW_PRESS) {
         engine->showSurface = !engine->showSurface;
@@ -218,6 +231,7 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
             << "        V ---> activate/deactivate wireframe view\n"
             << "        T ---> start/stop the timer\n"
             << "        R ---> activate/deactivate recording mode\n"
+            << "        O ---> activate/deactivate save surface mode\n"
             << "        P ---> show particles/mesh surface\n"
             << "        H ---> get help for hot keys\n"
             << "        ESC -> close window\n"
@@ -595,23 +609,31 @@ void VulkanEngine::switchViewMode() {
     renderables[renderables.size() - 3].material = material; // surface
 }
 
-void VulkanEngine::generateMeshSurface() {
-    sphSolver.reconstructSurface();
-
-    const POINT3D* vertices     = sphSolver.vertices();
-    const VECTOR3D* normals     = sphSolver.normals();
-    const unsigned int* indices = sphSolver.indices();
+void VulkanEngine::generateMeshSurface(bool fromMemory) {
 
     Mesh surface{ &context };
-    for (int i = 0; i < sphSolver.verticesCount(); i++) {
-        Vertex vertex{};
-        vertex.position = { vertices[i][0], vertices[i][1], vertices[i][2] };
-        vertex.normal = { normals[i][0], normals[i][1], normals[i][2] };
 
-        surface.vertices.push_back(vertex);
+    if (fromMemory) {
+        surface.loadFromObj(SURFACE_MODEL_PATH.c_str());
+    }
+    else {
+        sphSolver.reconstructSurface();
+
+        const POINT3D* vertices = sphSolver.vertices();
+        const VECTOR3D* normals = sphSolver.normals();
+        const unsigned int* indices = sphSolver.indices();
+
+        for (int i = 0; i < sphSolver.verticesCount(); i++) {
+            Vertex vertex{};
+            vertex.position = { vertices[i][0], vertices[i][1], vertices[i][2] };
+            vertex.normal = { normals[i][0], normals[i][1], normals[i][2] };
+
+            surface.vertices.push_back(vertex);
+        }
+
+        surface.indices.assign(indices, indices + sphSolver.indicesCount());
     }
 
-    surface.indices.assign(indices, indices + sphSolver.indicesCount());
     meshes["surface"] = surface;
 }
 
@@ -668,12 +690,12 @@ void VulkanEngine::initScene() {
 }
 
 void VulkanEngine::initSphSolver() {
-    Real spacing = 1.0f / 2;
+    Real spacing = 1.0f / 4;
     sphSolver = IISPHsolver3D(spacing);
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(22.0f, 30.0f, 14.0f);
+    Vec3f gridSize(20.0f, 30.0f, 14.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -826,7 +848,7 @@ void VulkanEngine::updateScene() {
     lastClockTime = currentClockTime;
 
     // update camera
-    camera.processKeyboardInput(window, dt);
+    //camera.processKeyboardInput(window, dt);
 
     if (!appTimerStopped) {
         appTimer += dt;
@@ -883,6 +905,9 @@ void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
     if(recordingModeOn && !appTimerStopped)
         savesFrames();
+
+    if (saveSurfaceModeOn && !appTimerStopped)
+        saveSurfaceMeshes();
 }
 
 void VulkanEngine::drawSingleObject(VkCommandBuffer commandBuffer, int objectIndex) {
@@ -934,6 +959,28 @@ void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, int instanceCoun
 
 
 // Exportation
+void VulkanEngine::saveSurfaceMeshes() {
+    static int saveCount = 0;
+    static int maxDigits = 6;
+
+    if (saveCount > 3499)
+        glfwSetWindowShouldClose(window, true);
+
+    float val = saveCount;
+    int leadingZeros = maxDigits - 1;
+    while (val >= 10) {
+        val /= 10;
+        leadingZeros--;
+    }
+
+    std::string frameID = std::to_string(saveCount++);
+    for (int i = 0; i < leadingZeros; i++)
+        frameID = "0" + frameID;
+
+    std::string filename = "../results/meshes/surface_" + frameID + ".obj";
+    getMesh("surface")->saveToObj(filename.c_str());
+}
+
 void VulkanEngine::savesFrames() {
     static int saveCount = 0;
     static int maxDigits = 6;
@@ -1138,7 +1185,7 @@ void VulkanEngine::saveScreenshot(const char* filename) {
     vkGetImageSubresourceLayout(context.device, dstImage, &subResource, &subResourceLayout);
 
     // Map image memory so we can start copying from it
-    const char* data;
+    const char* data{};
     vkMapMemory(context.device, dstImageMemory, 0, VK_WHOLE_SIZE, 0, (void**)&data);
     data += subResourceLayout.offset;
 

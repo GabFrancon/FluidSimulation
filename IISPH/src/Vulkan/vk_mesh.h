@@ -11,6 +11,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 
+#include <iomanip>
 
 struct VertexInputDescription {
     std::array<VkVertexInputBindingDescription, 1> bindings;
@@ -84,6 +85,7 @@ public:
 
     void loadFromObj(const char* filepath);
     void upload(VkCommandPool commandPool);
+    void saveToObj(const char* filepath);
     void destroy();
 };
 

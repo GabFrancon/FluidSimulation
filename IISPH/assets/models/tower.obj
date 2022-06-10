@@ -1,7 +1,3 @@
-# Blender v2.77 (sub 0) OBJ File: 'wooden watch tower2.blend'
-# www.blender.org
-mtllib wooden watch tower2.mtl
-o watchtowerHigh_watchtower
 v -2.110930 8.267134 -2.110862
 v 2.110932 8.267134 -2.110862
 v 2.110930 8.267134 2.111000
@@ -8094,7 +8090,7 @@ vn -0.5328 -0.8462 0.0000
 vn -0.5976 -0.8018 0.0000
 vn 0.6073 -0.7944 0.0000
 vn -0.5976 -0.8017 0.0000
-usemtl watchtower
+
 s 1
 f 1/1/1 2/2/1 3/3/1 4/4/1
 f 1636/5/2 5/6/2 6/7/2 1640/8/2

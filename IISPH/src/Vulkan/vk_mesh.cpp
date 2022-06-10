@@ -81,6 +81,43 @@ void Mesh::upload(VkCommandPool commandPool) {
     indexStagingBuffer.destroy(context->device);
 }
 
+void Mesh::saveToObj(const char* filepath) {
+    std::ofstream file(filepath, std::ios::out | std::ios::binary);
+
+    for (Vertex& v : vertices) {
+        file << "v " 
+            << std::fixed << std::setprecision(6) << v.position.x << " " 
+            << std::fixed << std::setprecision(6) << v.position.y << " " 
+            << std::fixed << std::setprecision(6) << v.position.z << "\n";
+    }
+
+    for (Vertex& v : vertices) {
+        file << "vt "
+            << std::fixed << std::setprecision(6) << v.texCoord.x << " "
+            << std::fixed << std::setprecision(6) << v.texCoord.y << "\n";
+    }
+
+    for (Vertex& v : vertices) {
+        file << "vn "
+            << std::fixed << std::setprecision(6) << v.normal.x << " "
+            << std::fixed << std::setprecision(6) << v.normal.y << " "
+            << std::fixed << std::setprecision(6) << v.normal.z << "\n";
+    }
+
+    file << "\n";
+
+    for (int i = 0; i < indices.size(); i += 3) {
+        file << "f "
+            << indices[i + 0] + 1 << "/" << indices[i + 0] + 1 << "/" << indices[i + 0] + 1 << " "
+            << indices[i + 1] + 1 << "/" << indices[i + 1] + 1 << "/" << indices[i + 1] + 1 << " "
+            << indices[i + 2] + 1 << "/" << indices[i + 2] + 1 << "/" << indices[i + 2] + 1 << "\n";
+    }
+
+    file.close();
+    std::cout << "Mesh saved saved to disk" << std::endl;
+
+}
+
 void Mesh::destroy() {
     indexBuffer.destroy(context->device);
     vertexBuffer.destroy(context->device);
