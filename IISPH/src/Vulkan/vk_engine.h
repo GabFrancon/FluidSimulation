@@ -22,10 +22,10 @@ static const int MAX_OBJECTS_RENDERED  = 150000;
 static const int MAX_MATERIALS_CREATED = 10;
 static const int MAX_FRAMES_IN_FLIGHT  = 2;
 
-static const std::string SPHERE_MODEL_PATH = "assets/models/sphere.obj";
-static const std::string CUBE_MODEL_PATH   = "assets/models/cube.obj";
-static const std::string BUNNY_MODEL_PATH  = "assets/models/bunny.obj";
-static const std::string TOWER_MODEL_PATH  = "assets/models/tower.obj";
+static const std::string SPHERE_MODEL_PATH  = "assets/models/sphere.obj";
+static const std::string CUBE_MODEL_PATH    = "assets/models/cube.obj";
+static const std::string BUNNY_MODEL_PATH   = "assets/models/bunny.obj";
+static const std::string TOWER_MODEL_PATH   = "assets/models/tower.obj";
 static const std::string SURFACE_MODEL_PATH = "assets/models/surface.obj";
 
 static const std::string TOWER_TEXTURE_PATH = "assets/textures/tower.jpg";

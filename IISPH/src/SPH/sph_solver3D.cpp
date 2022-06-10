@@ -572,7 +572,16 @@ void IISPHsolver3D::computeDistanceField(int i, const float radius) {
         sumK  += temp;
     }
 
-    _distanceField[i] = (_sPosition[i] - sumX / sumK).length() - _h / 2;
+    if (std::abs(sumK) < std::numeric_limits<Real>::epsilon()) {
+        if (std::abs(sumX.length()) < std::numeric_limits<Real>::epsilon())
+            _distanceField[i] = (_sPosition[i]).length() - _h / 2;
+        else
+            _distanceField[i] = 0.0f;
+    }
+
+    else {
+        _distanceField[i] = (_sPosition[i] - sumX / sumK).length() - _h / 2;
+    }
 }
 
 void IISPHsolver3D::generateIsoSurface() {

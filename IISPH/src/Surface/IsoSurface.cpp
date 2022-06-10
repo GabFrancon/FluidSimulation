@@ -734,9 +734,11 @@ template <class T> void IsoSurface<T>::CalculateNormals()
 	// Normalize normals.
 	for (int i = 0; i < m_nNormals; i++) {
 		float length = sqrt(m_pvec3dNormals[i][0]*m_pvec3dNormals[i][0] + m_pvec3dNormals[i][1]*m_pvec3dNormals[i][1] + m_pvec3dNormals[i][2]*m_pvec3dNormals[i][2]);
-		m_pvec3dNormals[i][0] /= length;
-		m_pvec3dNormals[i][1] /= length;
-		m_pvec3dNormals[i][2] /= length;
+		if (length > 0) {
+			m_pvec3dNormals[i][0] /= length;
+			m_pvec3dNormals[i][1] /= length;
+			m_pvec3dNormals[i][2] /= length;
+		}
 	}
 }
 
