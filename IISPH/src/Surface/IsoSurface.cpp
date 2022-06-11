@@ -455,7 +455,7 @@ template <class T> void IsoSurface<T>::GenerateSurface(const T* ptScalarField, T
 			}
 	
 	RenameVerticesAndTriangles();
-	CalculateNormals();
+	//CalculateNormals();
 	m_bValidSurface = true;
 }
 

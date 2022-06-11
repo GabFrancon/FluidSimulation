@@ -23,6 +23,12 @@ struct Vertex {
     glm::vec3 normal;
     glm::vec2 texCoord;
 
+    Vertex() {
+        position = glm::vec3(0.0f);
+        normal   = glm::vec3(0.0f);
+        texCoord = glm::vec2(0.0f);
+    }
+
     static VertexInputDescription getVertexDescription() {
         VertexInputDescription description{};
 
@@ -83,9 +89,14 @@ public:
     Mesh(){}
     Mesh(VulkanContext* context) : context(context) { }
 
-    void loadFromObj(const char* filepath);
+    void loadFromObj(const char* filepath, bool autoTexCoord, bool autoNormal);
     void upload(VkCommandPool commandPool);
     void saveToObj(const char* filepath);
     void destroy();
+
+    void subdivideLoop();
+    void computeNormals();
+    void computePlanarTexCoords();
+    void computeSphericalTexCoords();
 };
 

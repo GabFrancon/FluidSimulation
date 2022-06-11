@@ -19,16 +19,15 @@ static const uint32_t WIDTH  = 1600;
 static const uint32_t HEIGHT = 1200;
 
 static const int MAX_OBJECTS_RENDERED  = 150000;
-static const int MAX_MATERIALS_CREATED = 10;
+static const int MAX_MATERIALS_CREATED = 20;
 static const int MAX_FRAMES_IN_FLIGHT  = 2;
 
 static const std::string SPHERE_MODEL_PATH  = "assets/models/sphere.obj";
 static const std::string CUBE_MODEL_PATH    = "assets/models/cube.obj";
 static const std::string BUNNY_MODEL_PATH   = "assets/models/bunny.obj";
-static const std::string TOWER_MODEL_PATH   = "assets/models/tower.obj";
-static const std::string SURFACE_MODEL_PATH = "assets/models/surface.obj";
 
-static const std::string TOWER_TEXTURE_PATH = "assets/textures/tower.jpg";
+static const std::string WATER_TEXTURE_PATH = "assets/textures/water.jpg";
+static const std::string BUNNY_TEXTURE_PATH = "assets/textures/bunny.png";
 
 static const std::string BASIC_VERT_SHADER_PATH     = "shaders/basic_vert.spv";
 static const std::string INSTANCED_VERT_SHADER_PATH = "shaders/instanced_vert.spv";
@@ -96,19 +95,21 @@ private:
 
     // Logic
     IISPHsolver3D sphSolver;
-
-    float appTimer         = 0.0f;
-    float lastClockTime    = 0.0f;
-    float currentClockTime = 0.0f;
+    unsigned int frameCount = 0;
+    float appTimer          = 0.0f;
+    float lastClockTime     = 0.0f;
+    float currentClockTime  = 0.0f;
 
     // Flags
-    bool appTimerStopped    = true;
-    bool recordingModeOn    = false;
-    bool saveSurfaceModeOn  = false;
     bool framebufferResized = false;
-    bool wireframeViewOn    = false;
-    bool showSurface        = false;
+    bool appTimerStopped    = true;
 
+    bool simulationOn    = false;
+    bool wireframeViewOn = false;
+    bool particleViewOn  = false;
+
+    bool recordAnim  = false;
+    bool exportAnim  = false;
 
 
     /*--------------------------------------CLASS FUNCTIONS--------------------------------------*/
@@ -146,7 +147,9 @@ private:
     void      loadMeshes();
     void      createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline);
     void      switchViewMode();
-    void      generateMeshSurface(bool fromMemory = false);
+    void      generateSurfaceMesh();
+    void      loadSurfaceMesh();
+    void      smoothSurfaceMesh();
     Texture*  getTexture(const std::string& name);
     Mesh*     getMesh(const std::string& name);
     Material* getMaterial(const std::string& name);
@@ -167,7 +170,8 @@ private:
     void drawInstanced(VkCommandBuffer commandBuffer, int instanceCount, int firstInstance);
 
     // Exportation
-    void saveSurfaceMeshes();
-    void savesFrames();
-    void saveScreenshot(const char* filename);
+    void saveSurfaceMesh();
+    void saveFrame();
+    void takeScreenshot(const char* filename);
+    std::string frameID(int frameCount);
 };

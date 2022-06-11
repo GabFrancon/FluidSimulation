@@ -26,7 +26,7 @@ public:
         _eta  = eta;
 
         // fixed constants
-        _dt = 0.01f;
+        _dt = 0.00835f;
         _g  = Vec3f(0.0f, -9.81f, 0.0f);
         _omega = 0.5f;
 
@@ -61,11 +61,9 @@ public:
     const inline Real particleSpacing() const { return _h; };
 
     const inline Index verticesCount() const { return _isoSurface.m_nVertices; }
-    const inline Index normalsCount()  const { return _isoSurface.m_nNormals; }
     const inline Index indicesCount()  const { return _isoSurface.m_nTriangles * 3; }
 
     const inline POINT3D*      vertices() const { return _isoSurface.m_ppt3dVertices; }
-    const inline VECTOR3D*     normals()  const { return _isoSurface.m_pvec3dNormals; }
     const inline unsigned int* indices()  const { return _isoSurface.m_piTriangleIndices; }
     
 
