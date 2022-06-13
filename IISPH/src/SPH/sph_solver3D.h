@@ -8,6 +8,7 @@
 #include <numeric>
 #include <algorithm>
 #include <vector>
+#include <omp.h>
 
 
 class IISPHsolver3D

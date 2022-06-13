@@ -132,7 +132,7 @@ void Mesh::destroy() {
     vertexBuffer.destroy(context->device);
 }
 
-void Mesh::subdivideLoop() {
+void Mesh::loopSubdivision() {
     // Declare new vertices and new triangles. Initialize the new positions for the even vertices with (0,0,0):
     std::vector<Vertex> newVertices(vertices.size(), Vertex());
     std::vector<uint32_t> newIndices;
@@ -287,9 +287,50 @@ void Mesh::subdivideLoop() {
         newIndices.insert(newIndices.end(), trianglesToAdd.begin(), trianglesToAdd.end());
     }
 
-    // after that:
     indices = newIndices;
     vertices = newVertices;
+    computeNormals();
+    computePlanarTexCoords();
+}
+
+void Mesh::laplacianSmooth(int repeat) {
+    
+    for (int k = 0; k < repeat; k++) {
+        std::vector<Vertex> newVertices(vertices.size(), Vertex());
+        std::vector< std::set< unsigned int > > neighbors(vertices.size());
+
+        // find neighbors of each vertex
+        for (unsigned int i = 0; i < indices.size(); i += 3)
+        {
+            unsigned int a = indices[i + 0];
+            unsigned int b = indices[i + 1];
+            unsigned int c = indices[i + 2];
+
+            neighbors[a].insert(b);
+            neighbors[a].insert(c);
+            neighbors[b].insert(a);
+            neighbors[b].insert(c);
+            neighbors[c].insert(a);
+            neighbors[c].insert(b);
+        }
+
+        // adjust vertex positions according to their neighborhood
+        float beta = 0.5f;
+        glm::vec3 sum(0.0f);
+
+        for (unsigned int i = 0; i < vertices.size(); i++) {
+
+            for (auto& it : neighbors[i])
+                sum += vertices[it].position;
+            sum /= neighbors[i].size();
+
+            newVertices[i].position = (1 - beta) * vertices[i].position + beta * sum;
+            sum = { 0.0f, 0.0f, 0.0f };
+        }
+
+        vertices = newVertices;
+    }
+
     computeNormals();
     computePlanarTexCoords();
 }

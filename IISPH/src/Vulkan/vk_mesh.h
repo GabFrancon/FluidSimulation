@@ -94,7 +94,8 @@ public:
     void saveToObj(const char* filepath);
     void destroy();
 
-    void subdivideLoop();
+    void loopSubdivision();
+    void laplacianSmooth(int repeat);
     void computeNormals();
     void computePlanarTexCoords();
     void computeSphericalTexCoords();

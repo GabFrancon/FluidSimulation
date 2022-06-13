@@ -11,6 +11,8 @@
 
 #include <map>
 #include <vector>
+#include <iostream>
+#include <omp.h>
 #include "Vectors.h"
 
 struct POINT3DID {
@@ -63,12 +65,6 @@ public:
 	// The indices of the vertices which make up the triangles.
 	unsigned int* m_piTriangleIndices;
 
-	// The number of normals.
-	unsigned int m_nNormals;
-
-	// The normals.
-	VECTOR3D* m_pvec3dNormals;
-
 
 
 private:
@@ -98,9 +94,6 @@ private:
 	// Renames vertices and triangles so that they can be accessed more
 	// efficiently.
 	void RenameVerticesAndTriangles();
-
-	// Calculates the normals.
-	void CalculateNormals();
 
 	// No. of cells in x, y, and z directions.
 	unsigned int m_nCellsX, m_nCellsY, m_nCellsZ;

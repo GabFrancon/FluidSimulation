@@ -201,6 +201,11 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
     }
     else if (key == GLFW_KEY_T && action == GLFW_PRESS) {
         engine->appTimerStopped = !engine->appTimerStopped;
+
+        if (engine->appTimerStopped)
+            std::cout << "app timer stopped" << std::endl;
+        else
+            std::cout << "app timer started" << std::endl;
     }
     else if (key == GLFW_KEY_R && action == GLFW_PRESS) {
         engine->recordAnim = !engine->recordAnim;
@@ -259,7 +264,11 @@ void VulkanEngine::mouseCallback(GLFWwindow* window, double xpos, double ypos)
 
     auto engine = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
     engine->camera.processMouseMovement(xpos - lastX, lastY - ypos);
-    engine->appTimerStopped = true;
+
+    if (!engine->appTimerStopped) {
+        engine->appTimerStopped = true;
+        std::cout << "app timer stopped" << std::endl;
+    }
 
     lastX = xpos;
     lastY = ypos;
@@ -607,11 +616,11 @@ void VulkanEngine::switchViewMode() {
 
     if (wireframeViewOn) {
         renderables[0].material = getMaterial("bas_bunny_line_back"); // bunny
-        renderables[renderables.size() - 3].material = getMaterial("bas_water_line_back"); // surface
+        renderables[renderables.size() - 3].material = getMaterial("bas_col_line_back"); // surface
     }
     else {
         renderables[0].material = getMaterial("bas_bunny_fill_back"); // bunny
-        renderables[renderables.size() - 3].material = getMaterial("bas_water_fill_back"); // surface
+        renderables[renderables.size() - 3].material = getMaterial("bas_col_fill_back"); // surface
     }
 }
 
@@ -628,9 +637,8 @@ void VulkanEngine::generateSurfaceMesh() {
         surface.vertices.push_back(vertex);
     }
     surface.indices.assign(indices, indices + sphSolver.indicesCount());
-    surface.computeNormals();
-    surface.computePlanarTexCoords();
 
+    surface.laplacianSmooth(4);
     meshes["surface"] = surface;
 }
 
@@ -646,7 +654,7 @@ void VulkanEngine::smoothSurfaceMesh() {
     vkDeviceWaitIdle(context.device);
     getMesh("surface")->destroy();
 
-    getMesh("surface")->subdivideLoop();
+    getMesh("surface")->laplacianSmooth(1);
     getMesh("surface")->upload(commandPool);
 }
 
@@ -818,7 +826,7 @@ void VulkanEngine::initSurface() {
     getMesh("surface")->upload(commandPool);
 
     surface.mesh = getMesh("surface");
-    surface.material = getMaterial("bas_water_fill_back");
+    surface.material = getMaterial("bas_col_fill_back");
     surface.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
     surface.albedoColor = color;
 

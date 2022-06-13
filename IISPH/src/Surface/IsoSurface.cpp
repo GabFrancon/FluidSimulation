@@ -312,11 +312,9 @@ template <class T> IsoSurface<T>::IsoSurface()
 	m_nCellsY = 0;
 	m_nCellsZ = 0;
 	m_nTriangles = 0;
-	m_nNormals = 0;
 	m_nVertices = 0;
 	m_ppt3dVertices = NULL;
 	m_piTriangleIndices = NULL;
-	m_pvec3dNormals = NULL;
 	m_ptScalarField = NULL;
 	m_tIsoLevel = 0;
 	m_bValidSurface = false;
@@ -333,38 +331,42 @@ template <class T> void IsoSurface<T>::GenerateSurface(const T* ptScalarField, T
 		DeleteSurface();
 
 	m_tIsoLevel = tIsoLevel;
-	m_nCellsX = nCellsX;
-	m_nCellsY = nCellsY;
-	m_nCellsZ = nCellsZ;
-	m_fCellLengthX = fCellLengthX;
-	m_fCellLengthY = fCellLengthY;
-	m_fCellLengthZ = fCellLengthZ;
+	m_nCellsX   = nCellsX;
+	m_nCellsY   = nCellsY;
+	m_nCellsZ   = nCellsZ;
+	m_fCellLengthX  = fCellLengthX;
+	m_fCellLengthY  = fCellLengthY;
+	m_fCellLengthZ  = fCellLengthZ;
 	m_ptScalarField = ptScalarField;
 
 	unsigned int nPointsInXDirection = (m_nCellsX + 1);
 	unsigned int nPointsInSlice = nPointsInXDirection*(m_nCellsY + 1);
 
 	// Generate isosurface
-	for (unsigned int z = 0; z < m_nCellsZ; z++)
-		for (unsigned int y = 0; y < m_nCellsY; y++)
-			for (unsigned int x = 0; x < m_nCellsX; x++) {
+	//#pragma omp declare reduction (merge: TRIANGLEVECTOR : omp_out.insert(omp_out.end(), omp_in.begin(), omp_in.end()))
+	//TRIANGLEVECTOR triangle_private;
+
+	//#pragma omp parallel for nowait collapse(3)
+	for (int z = 0; z < m_nCellsZ; z++) {
+		for (int y = 0; y < m_nCellsY; y++) {
+			for (int x = 0; x < m_nCellsX; x++) {
 				// Calculate table lookup index from those vertices which are below the isolevel
 				unsigned int tableIndex = 0;
-				if (m_ptScalarField[z*nPointsInSlice + y*nPointsInXDirection + x] < m_tIsoLevel)
+				if (m_ptScalarField[z * nPointsInSlice + y * nPointsInXDirection + x] < m_tIsoLevel)
 					tableIndex |= 1;
-				if (m_ptScalarField[z*nPointsInSlice + (y+1)*nPointsInXDirection + x] < m_tIsoLevel)
+				if (m_ptScalarField[z * nPointsInSlice + (y + 1) * nPointsInXDirection + x] < m_tIsoLevel)
 					tableIndex |= 2;
-				if (m_ptScalarField[z*nPointsInSlice + (y+1)*nPointsInXDirection + (x+1)] < m_tIsoLevel)
+				if (m_ptScalarField[z * nPointsInSlice + (y + 1) * nPointsInXDirection + (x + 1)] < m_tIsoLevel)
 					tableIndex |= 4;
-				if (m_ptScalarField[z*nPointsInSlice + y*nPointsInXDirection + (x+1)] < m_tIsoLevel)
+				if (m_ptScalarField[z * nPointsInSlice + y * nPointsInXDirection + (x + 1)] < m_tIsoLevel)
 					tableIndex |= 8;
-				if (m_ptScalarField[(z+1)*nPointsInSlice + y*nPointsInXDirection + x] < m_tIsoLevel)
+				if (m_ptScalarField[(z + 1) * nPointsInSlice + y * nPointsInXDirection + x] < m_tIsoLevel)
 					tableIndex |= 16;
-				if (m_ptScalarField[(z+1)*nPointsInSlice + (y+1)*nPointsInXDirection + x] < m_tIsoLevel)
+				if (m_ptScalarField[(z + 1) * nPointsInSlice + (y + 1) * nPointsInXDirection + x] < m_tIsoLevel)
 					tableIndex |= 32;
-				if (m_ptScalarField[(z+1)*nPointsInSlice + (y+1)*nPointsInXDirection + (x+1)] < m_tIsoLevel)
+				if (m_ptScalarField[(z + 1) * nPointsInSlice + (y + 1) * nPointsInXDirection + (x + 1)] < m_tIsoLevel)
 					tableIndex |= 64;
-				if (m_ptScalarField[(z+1)*nPointsInSlice + y*nPointsInXDirection + (x+1)] < m_tIsoLevel)
+				if (m_ptScalarField[(z + 1) * nPointsInSlice + y * nPointsInXDirection + (x + 1)] < m_tIsoLevel)
 					tableIndex |= 128;
 
 				// Now create a triangulation of the isosurface in this cell
@@ -384,7 +386,7 @@ template <class T> void IsoSurface<T>::GenerateSurface(const T* ptScalarField, T
 						unsigned int id = GetEdgeID(x, y, z, 8);
 						m_i2pt3idVertices.insert(ID2POINT3DID::value_type(id, pt));
 					}
-					
+
 					if (x == m_nCellsX - 1) {
 						if (m_edgeTable[tableIndex] & 4) {
 							POINT3DID pt = CalculateIntersection(x, y, z, 2);
@@ -421,31 +423,31 @@ template <class T> void IsoSurface<T>::GenerateSurface(const T* ptScalarField, T
 							m_i2pt3idVertices.insert(ID2POINT3DID::value_type(id, pt));
 						}
 					}
-					if ((x==m_nCellsX - 1) && (y==m_nCellsY - 1))
+					if ((x == m_nCellsX - 1) && (y == m_nCellsY - 1))
 						if (m_edgeTable[tableIndex] & 1024) {
 							POINT3DID pt = CalculateIntersection(x, y, z, 10);
 							unsigned int id = GetEdgeID(x, y, z, 10);
 							m_i2pt3idVertices.insert(ID2POINT3DID::value_type(id, pt));
 						}
-					if ((x==m_nCellsX - 1) && (z==m_nCellsZ - 1))
+					if ((x == m_nCellsX - 1) && (z == m_nCellsZ - 1))
 						if (m_edgeTable[tableIndex] & 64) {
 							POINT3DID pt = CalculateIntersection(x, y, z, 6);
 							unsigned int id = GetEdgeID(x, y, z, 6);
 							m_i2pt3idVertices.insert(ID2POINT3DID::value_type(id, pt));
 						}
-					if ((y==m_nCellsY - 1) && (z==m_nCellsZ - 1))
+					if ((y == m_nCellsY - 1) && (z == m_nCellsZ - 1))
 						if (m_edgeTable[tableIndex] & 32) {
 							POINT3DID pt = CalculateIntersection(x, y, z, 5);
 							unsigned int id = GetEdgeID(x, y, z, 5);
 							m_i2pt3idVertices.insert(ID2POINT3DID::value_type(id, pt));
 						}
-					
-					for (unsigned int i = 0; m_triTable[tableIndex][i] != -1; i += 3) {
+
+					for (int i = 0; m_triTable[tableIndex][i] != -1; i += 3) {
 						TRIANGLE triangle{};
 						unsigned int pointID0, pointID1, pointID2;
 						pointID0 = GetEdgeID(x, y, z, m_triTable[tableIndex][i]);
-						pointID1 = GetEdgeID(x, y, z, m_triTable[tableIndex][i+1]);
-						pointID2 = GetEdgeID(x, y, z, m_triTable[tableIndex][i+2]);
+						pointID1 = GetEdgeID(x, y, z, m_triTable[tableIndex][i + 1]);
+						pointID2 = GetEdgeID(x, y, z, m_triTable[tableIndex][i + 2]);
 						triangle.pointID[0] = pointID0;
 						triangle.pointID[1] = pointID1;
 						triangle.pointID[2] = pointID2;
@@ -453,9 +455,10 @@ template <class T> void IsoSurface<T>::GenerateSurface(const T* ptScalarField, T
 					}
 				}
 			}
-	
+		}
+	}
+
 	RenameVerticesAndTriangles();
-	//CalculateNormals();
 	m_bValidSurface = true;
 }
 
@@ -473,7 +476,6 @@ template <class T> void IsoSurface<T>::DeleteSurface()
 	m_nCellsY = 0;
 	m_nCellsZ = 0;
 	m_nTriangles = 0;
-	m_nNormals = 0;
 	m_nVertices = 0;
 	if (m_ppt3dVertices != NULL) {
 		delete[] m_ppt3dVertices;
@@ -483,10 +485,7 @@ template <class T> void IsoSurface<T>::DeleteSurface()
 		delete[] m_piTriangleIndices;
 		m_piTriangleIndices = NULL;
 	}
-	if (m_pvec3dNormals != NULL) {
-		delete[] m_pvec3dNormals;
-		m_pvec3dNormals = NULL;
-	}
+
 	m_ptScalarField = NULL;
 	m_tIsoLevel = 0;
 	m_bValidSurface = false;
@@ -686,60 +685,6 @@ template <class T> void IsoSurface<T>::RenameVerticesAndTriangles()
 
 	m_i2pt3idVertices.clear();
 	m_trivecTriangles.clear();
-}
-
-template <class T> void IsoSurface<T>::CalculateNormals()
-{
-	m_nNormals = m_nVertices;
-	m_pvec3dNormals = new VECTOR3D[m_nNormals];
-	
-	// Set all normals to 0.
-	for (unsigned int i = 0; i < m_nNormals; i++) {
-		m_pvec3dNormals[i][0] = 0;
-		m_pvec3dNormals[i][1] = 0;
-		m_pvec3dNormals[i][2] = 0;
-	}
-
-	// Calculate normals.
-	for (int i = 0; i < m_nTriangles; i++) {
-		VECTOR3D vec1{}, vec2{}, normal{};
-		unsigned int id0, id1, id2;
-
-		id0 = m_piTriangleIndices[i*3];
-		id1 = m_piTriangleIndices[i*3+1];
-		id2 = m_piTriangleIndices[i*3+2];
-
-		vec1[0] = m_ppt3dVertices[id1][0] - m_ppt3dVertices[id0][0];
-		vec1[1] = m_ppt3dVertices[id1][1] - m_ppt3dVertices[id0][1];
-		vec1[2] = m_ppt3dVertices[id1][2] - m_ppt3dVertices[id0][2];
-		vec2[0] = m_ppt3dVertices[id2][0] - m_ppt3dVertices[id0][0];
-		vec2[1] = m_ppt3dVertices[id2][1] - m_ppt3dVertices[id0][1];
-		vec2[2] = m_ppt3dVertices[id2][2] - m_ppt3dVertices[id0][2];
-
-		normal[0] = vec1[2]*vec2[1] - vec1[1]*vec2[2];
-		normal[1] = vec1[0]*vec2[2] - vec1[2]*vec2[0];
-		normal[2] = vec1[1]*vec2[0] - vec1[0]*vec2[1];
-
-		m_pvec3dNormals[id0][0] += normal[0];
-		m_pvec3dNormals[id0][1] += normal[1];
-		m_pvec3dNormals[id0][2] += normal[2];
-		m_pvec3dNormals[id1][0] += normal[0];
-		m_pvec3dNormals[id1][1] += normal[1];
-		m_pvec3dNormals[id1][2] += normal[2];
-		m_pvec3dNormals[id2][0] += normal[0];
-		m_pvec3dNormals[id2][1] += normal[1];
-		m_pvec3dNormals[id2][2] += normal[2];
-	}
-
-	// Normalize normals.
-	for (int i = 0; i < m_nNormals; i++) {
-		float length = sqrt(m_pvec3dNormals[i][0]*m_pvec3dNormals[i][0] + m_pvec3dNormals[i][1]*m_pvec3dNormals[i][1] + m_pvec3dNormals[i][2]*m_pvec3dNormals[i][2]);
-		if (length > 0) {
-			m_pvec3dNormals[i][0] /= length;
-			m_pvec3dNormals[i][1] /= length;
-			m_pvec3dNormals[i][2] /= length;
-		}
-	}
 }
 
 template class IsoSurface<short>;

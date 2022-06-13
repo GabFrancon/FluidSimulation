@@ -46,12 +46,12 @@ void IISPHsolver3D::prepare() {
     searchNeighbors();
 
     // compute density number ones and for all
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < _boundaryCount; i++)
         computePsi(i);
 
     // visualize initial fluid density
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++)
         computeDensity(i);
 
@@ -178,7 +178,7 @@ void IISPHsolver3D::updateParticles() {
 }
 
 void IISPHsolver3D::reconstructSurface() {
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < _surfaceCount; i++)
         computeDistanceField(i, 2.0f * _h);
 
@@ -206,7 +206,7 @@ void IISPHsolver3D::buildNeighborGrid() {
 }
 
 void IISPHsolver3D::searchNeighbors() {
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++) {
         // search for fluid neighbor particles
         size_t lastFluidSize = _fNeighbors[i].size();
@@ -223,18 +223,18 @@ void IISPHsolver3D::searchNeighbors() {
 }
 
 void IISPHsolver3D::predictAdvection() {
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++)
         computeDensity(i);
 
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++) {
         computeAdvectionForces(i);
         predictVelocity(i);
         storeDii(i);
     }
 
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++) {
         predictDensity(i);
         initPressure(i);
@@ -248,11 +248,11 @@ void IISPHsolver3D::pressureSolve() {
 
     while (((_avgDensity - _rho0) > _eta) || (l < 2))
     {
-#pragma omp parallel for
+        #pragma omp parallel for
         for (int i = 0; i < _fluidCount; i++)
             storeSumDijPj(i);
 
-#pragma omp parallel for
+        #pragma omp parallel for
         for (int i = 0; i < _fluidCount; i++)
             computePressure(i);
 
@@ -262,11 +262,11 @@ void IISPHsolver3D::pressureSolve() {
 }
 
 void IISPHsolver3D::integration() {
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++)
         computePressureForces(i);
 
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++) {
         updateVelocity(i);
         updatePosition(i);
