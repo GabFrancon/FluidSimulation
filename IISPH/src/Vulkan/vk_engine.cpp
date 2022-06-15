@@ -232,10 +232,12 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
             engine->updateSurface();
     }
     else if (key == GLFW_KEY_K && action == GLFW_PRESS) {
-        engine->smoothSurfaceMesh();
+        engine->showStatistics();
     }
-    else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+    else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
+        engine->showStatistics();
+    }
 
     else if (key == GLFW_KEY_H && action == GLFW_PRESS) {
         std::cout << "\n\nHot keys : \n"
@@ -244,6 +246,7 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
             << "        O ---> on/off animation exportation\n"
             << "        V ---> on/off wireframe view\n"
             << "        P ---> on/off particle view\n"
+            << "        K ---> show statistics\n"
             << "        H ---> get help for hot keys\n"
             << "        ESC -> close window\n"
             << std::endl;
@@ -878,12 +881,12 @@ void VulkanEngine::updateScene() {
 
     if (!appTimerStopped) {
         appTimer += dt;
+        frameCount++;
 
         if (simulationOn) {
-            //update SPH solver
-            for(int i=0; i<2; i++)
-                sphSolver.updateParticles();
-
+            // solve SPH equations
+            updateSphSolver();
+           
             // update render objects
             if(particleViewOn)
                 updateParticles();
@@ -897,11 +900,20 @@ void VulkanEngine::updateScene() {
             if (frameCount >= 1320)
                 frameCount = 0;
 
+            // upload next surface mesh from .obj file
             updateSurface();
         }
-
-        frameCount++;
     }
+}
+
+void VulkanEngine::updateSphSolver() {
+    auto start = Clock::now();
+
+    for (int i = 0; i < 2; i++)
+        sphSolver.solveSimulation();
+
+    std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start);
+    sphTimeComputation = (elapsed.count() + (frameCount - 1) * sphTimeComputation) / frameCount;
 }
 
 void VulkanEngine::updateParticles() {
@@ -922,6 +934,8 @@ void VulkanEngine::updateParticles() {
 }
 
 void VulkanEngine::updateSurface() {
+    auto start = Clock::now();
+
     vkDeviceWaitIdle(context.device);
     getMesh("surface")->destroy();
 
@@ -931,7 +945,10 @@ void VulkanEngine::updateSurface() {
         loadSurfaceMesh();
 
     getMesh("surface")->upload(commandPool);
-    renderables[renderables.size() - 3].mesh = getMesh("surface"); // surface
+    renderables[renderables.size() - 3].mesh = getMesh("surface");
+
+    std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start);
+    surfaceTimeComputation = (elapsed.count() + (frameCount - 1) * surfaceTimeComputation) / frameCount;
 }
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
@@ -1260,4 +1277,11 @@ std::string VulkanEngine::frameID(int frameCount) {
         frameID = "0" + frameID;
 
     return frameID;
+}
+
+void VulkanEngine::showStatistics() {
+    std::cout << "\n"
+        << "time for SPH simulation : " << std::setw(6) << sphTimeComputation << " ms\n" 
+        << "time for surface reconstruction : " << std::setw(6) << surfaceTimeComputation << " ms\n"
+        << std::endl;
 }

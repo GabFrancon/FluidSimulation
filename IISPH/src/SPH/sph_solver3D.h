@@ -15,7 +15,7 @@ class IISPHsolver3D
 {
 public:
     explicit IISPHsolver3D(
-        const Real h    = 0.5f,   // particle spacing
+        const Real h    = 0.5f,    // particle spacing
         const Real rho0 = 1e3f,    // rest density
         const Real nu   = 0.08f,   // kinematic viscosity
         const Real eta  = 0.01f)   // compressibility
@@ -41,7 +41,7 @@ public:
     void sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness = 1);
     void sampleDistanceField(Vec3f bottomLeft, Vec3f topRight);
     void sampleMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
-    void updateParticles();
+    void solveSimulation();
     void reconstructSurface();
 
     inline void setParticleHelper(Real cellSize, Vec3f gridSize) { _pGridHelper = GridHelper(cellSize, gridSize); }

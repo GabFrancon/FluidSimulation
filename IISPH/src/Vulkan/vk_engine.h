@@ -12,6 +12,8 @@
 
 #include "../SPH/sph_solver3D.h"
 
+#include <chrono>
+typedef std::chrono::high_resolution_clock Clock;
 
 
 // global constants
@@ -111,6 +113,9 @@ private:
     bool recordAnim  = false;
     bool exportAnim  = false;
 
+    // statistics
+    double sphTimeComputation      = 0.0f;
+    double surfaceTimeComputation  = 0.0f;
 
     /*--------------------------------------CLASS FUNCTIONS--------------------------------------*/
 
@@ -162,6 +167,7 @@ private:
     void initRoom();
 
     void updateScene();
+    void updateSphSolver();
     void updateParticles();
     void updateSurface();
 
@@ -174,4 +180,5 @@ private:
     void saveFrame();
     void takeScreenshot(const char* filename);
     std::string frameID(int frameCount);
+    void showStatistics();
 };

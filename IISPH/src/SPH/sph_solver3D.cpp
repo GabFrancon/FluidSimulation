@@ -166,7 +166,7 @@ void IISPHsolver3D::sampleDistanceField(Vec3f bottomLeft, Vec3f topRight) {
             }
 }
 
-void IISPHsolver3D::updateParticles() {
+void IISPHsolver3D::solveSimulation() {
     buildNeighborGrid();
     searchNeighbors();
 
