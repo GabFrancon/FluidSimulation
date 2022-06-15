@@ -693,7 +693,7 @@ Material* VulkanEngine::getMaterial(const std::string& name) {
 void VulkanEngine::initScene() {
     // init scene parameters
     sceneInfo = SceneInfo();
-    sceneInfo.lightPosition = glm::vec3(-20.0f, 80.0f, 20.0f);
+    sceneInfo.lightPosition = glm::vec3(40.0f, 40.0f, 40.0f);
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
@@ -725,8 +725,9 @@ void VulkanEngine::initSphSolver() {
 
     /*---------------------------------------"drop in a basin" scenario------------------------------------------------*/
 
-    //Vec3f fluidSize(gridSize.x - 2 * pCellSize, 5.0f, gridSize.z - 2 * pCellSize); // filled basin
-    //sphSolver.sampleFluidBall(gridSize / 2, 3.0f);
+    Vec3f fluidSize(gridSize.x - 2 * pCellSize, 5.0f, gridSize.z - 2 * pCellSize); // filled basin
+    sphSolver.sampleFluidCube(Vec3f(pCellSize), fluidSize + pCellSize);
+    sphSolver.sampleFluidBall(gridSize / 2, 3.0f, spacing);
 
     /*-----------------------------------------------------------------------------------------------------------------*/
 
@@ -734,10 +735,10 @@ void VulkanEngine::initSphSolver() {
 
     /*-----------------------------------"breaking dam on a bunny" scenario--------------------------------------------*/
 
-    Vec3f fluidSize(5.0f, 11.0f, gridSize.z - 2 * pCellSize);
+    /*Vec3f fluidSize(5.0f, 11.0f, gridSize.z - 2 * pCellSize);
     sphSolver.sampleFluidCube(Vec3f(pCellSize), fluidSize + pCellSize);
 
-    glm::vec3 position(gridSize.x / 2 + 2.0f, 1.5f, gridSize.z / 2 + 0.5f), color(0.8f, 0.7f, 0.2f), size(3.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    glm::vec3 position(gridSize.x / 2 + 2.0f, 2.0f, gridSize.z / 2 + 0.5f), color(0.8f, 0.7f, 0.2f), size(4.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
     float angle(0.0f);
     
     RenderObject bunny{};
@@ -758,7 +759,7 @@ void VulkanEngine::initSphSolver() {
         indices.push_back(i);
 
     renderables.push_back(bunny);
-    sphSolver.sampleMesh(vertices, indices);
+    sphSolver.sampleMesh(vertices, indices);*/
     
     /*-----------------------------------------------------------------------------------------------------------------*/
 
@@ -942,7 +943,7 @@ void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
     if (particleViewOn) {
         drawInstanced(commandBuffer, sphSolver.fluidCount(), 1); // fluid particles
-        // drawInstanced(commandBuffer, sphSolver.boundaryCount(), 1 + sphSolver.fluidCount()); // boundary particles
+        //drawInstanced(commandBuffer, sphSolver.boundaryCount(), 1 + sphSolver.fluidCount()); // boundary particles
     }
     else
         drawSingleObject(commandBuffer, renderables.size() - 3); // surface

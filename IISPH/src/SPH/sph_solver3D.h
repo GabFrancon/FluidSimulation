@@ -37,7 +37,7 @@ public:
 
     void prepare();
     void sampleFluidCube(Vec3f bottomLeft, Vec3f topRight);
-    void sampleFluidBall(Vec3f center, Real radius);
+    void sampleFluidBall(Vec3f center, Real radius, Real precision = 0.5f);
     void sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness = 1);
     void sampleDistanceField(Vec3f bottomLeft, Vec3f topRight);
     void sampleMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
