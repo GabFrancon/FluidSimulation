@@ -343,10 +343,6 @@ template <class T> void IsoSurface<T>::GenerateSurface(const T* ptScalarField, T
 	unsigned int nPointsInSlice = nPointsInXDirection*(m_nCellsY + 1);
 
 	// Generate isosurface
-	//#pragma omp declare reduction (merge: TRIANGLEVECTOR : omp_out.insert(omp_out.end(), omp_in.begin(), omp_in.end()))
-	//TRIANGLEVECTOR triangle_private;
-
-	//#pragma omp parallel for nowait collapse(3)
 	for (int z = 0; z < m_nCellsZ; z++) {
 		for (int y = 0; y < m_nCellsY; y++) {
 			for (int x = 0; x < m_nCellsX; x++) {
