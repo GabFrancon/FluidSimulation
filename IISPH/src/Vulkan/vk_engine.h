@@ -108,7 +108,7 @@ private:
 
     bool simulationOn    = true;
     bool wireframeViewOn = false;
-    bool particleViewOn  = false;
+    bool particleViewOn  = true;
 
     bool recordAnim  = false;
     bool exportAnim  = false;

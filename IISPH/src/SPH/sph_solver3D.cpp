@@ -69,35 +69,53 @@ void IISPHsolver3D::sampleFluidCube(Vec3f bottomLeft, Vec3f topRight) {
             }
 }
 
-void IISPHsolver3D::sampleFluidBall(Vec3f center, Real radius) {
-    Real x{}, y{}, z{};
+void IISPHsolver3D::sampleFluidBall(Vec3f center, Real radius, Real precision) {
+    for (Real r = 2*precision; r < radius; r += 2*precision) {
+        Real c = 1.61199195402f * r; // best length for the square
+        int nParticles = int(c / precision / 2);
+        Real delta = c / nParticles; // step
+        Vec3f origin = center - c / 2; // origin of the square (bottom left corner)
+        Vec3f dx{ delta, 0, 0 }, dy{ 0, delta, 0 }, dz{ 0, 0, delta };
+        Vec3f p{};
 
-
-    for (Real x = -2 *_h / 2; x < _h; x += _h / 2)
-        for (Real y = -2 *_h / 2; y < _h; y += _h / 2)
-            for (Real z = -1; z <= 1; z += _h)
-                _fPosition.push_back(radius * Vec3f(x, y, z) + center);
-
-    while (radius > _h / 2) {
-        Real off1 = 4 * _h / radius;
-
-        for (Real theta = off1; theta <= M_PI - off1; theta += _h / radius) {
-
-            Real coeff = std::abs(cos(2 * theta)) + 2.f;
-            Real step  = coeff * _h / radius;
-            Real off2 = step;
-
-            for (Real phi = 0; phi <= 2 * M_PI - step; phi += step) {
-
-                x = radius * sin(theta) * cos(phi);
-                y = radius * sin(theta) * sin(phi);
-                z = radius * cos(theta);
-
-                _fPosition.push_back(Vec3f(x, y, z) + center);
+        // z = 0
+        for (int i = 0; i <= nParticles; i++) {
+            for (int j = 0; j <= nParticles; j++) {
+                p = origin + i * dx + j * dy;
+                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
             }
         }
 
-        radius -= _h;
+        // in between
+        for (int z = 1; z < nParticles; z++) {
+            for (int i = 0; i <= nParticles; i++) {
+                // j = 0
+                p = origin + i * dx + z * dz;
+                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
+
+                // j = precision
+                p = origin + i * dx + nParticles * dy + z * dz;
+                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
+            }
+
+            for (int j = 0; j <= nParticles; j++) {
+                // i = 0
+                p = origin + j * dy + z * dz;
+                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
+
+                // i = precision
+                p = origin + nParticles * dx + j * dy + z * dz;
+                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
+            }
+        }
+
+        // z = precision
+        for (int i = 0; i <= nParticles; i++) {
+            for (int j = 0; j <= nParticles; j++) {
+                p = origin + i * dx + j * dy + nParticles * dz;
+                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
+            }
+        }
     }
 }
 
@@ -729,7 +747,7 @@ void IISPHsolver3D::sampleMesh(std::vector<Vec3f> vertices, std::vector<Index> i
         std::cout << "mesh sampled with interpolation technic" << std::endl;
     }
     else {
-        for (int i = 0; i < vertices.size(); i+=20)
+        for (int i = 0; i < vertices.size(); i+=15)
                 _bPosition.push_back(vertices[i]);
 
         std::cout << "mesh sampled with subset of its vertices" << std::endl;
