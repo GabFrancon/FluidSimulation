@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vk_context.h"
+#include "vk_tools.h"
 
 
 class VulkanSwapChain
@@ -26,6 +27,7 @@ public:
     void createSwapChain(GLFWwindow* window);
     void createImageViews();
     void createFramebuffers(VkCommandPool commandPool, VkRenderPass renderPass);
+    void takeScreenshot(const char* filename, VkCommandPool commandPool, unsigned int frameIndex);
     void destroy();
 
 private:

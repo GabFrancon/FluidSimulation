@@ -97,7 +97,7 @@ private:
 
     // Logic
     IISPHsolver3D sphSolver;
-    unsigned int frameCount = 0;
+    unsigned int frameCount = 1;
     float appTimer          = 0.0f;
     float lastClockTime     = 0.0f;
     float currentClockTime  = 0.0f;
