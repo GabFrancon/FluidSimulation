@@ -132,17 +132,27 @@ void Mesh::destroy() {
     vertexBuffer.destroy(context->device);
 }
 
+uint32_t subdivideEdge(uint32_t f0, uint32_t f1, const glm::vec3& v0, const glm::vec3& v1, Mesh& io_mesh, std::map<Edge, uint32_t>& io_divisions)
+{
+    const Edge edge(f0, f1);
+    auto it = io_divisions.find(edge);
+    if (it != io_divisions.end())
+    {
+        return it->second;
+    }
+
+    const uint32_t f = io_mesh.vertices.size();
+    Vertex v{};
+    v.position = glm::normalize(glm::vec3(0.5) * (v0 + v1));
+    io_mesh.vertices.emplace_back(v);
+    io_divisions.emplace(edge, f);
+    return f;
+}
+
 void Mesh::loopSubdivision() {
     // Declare new vertices and new triangles. Initialize the new positions for the even vertices with (0,0,0):
     std::vector<Vertex> newVertices(vertices.size(), Vertex());
     std::vector<uint32_t> newIndices;
-
-    struct Edge {
-        unsigned int a, b;
-        Edge(unsigned int c, unsigned int d) : a(std::min<unsigned int>(c, d)), b(std::max<unsigned int>(c, d)) {}
-        bool operator < (Edge const& o) const { return a < o.a || (a == o.a && b < o.b); }
-        bool operator == (Edge const& o) const { return a == o.a && b == o.b; }
-    };
 
     std::map< Edge, unsigned int > newVertexOnEdge; // this will be useful to find out whether we already inserted an odd vertex or not
     std::map< Edge, std::set< unsigned int > > trianglesOnEdge; // this will be useful to find out if an edge is boundary or not
@@ -293,9 +303,41 @@ void Mesh::loopSubdivision() {
     computePlanarTexCoords();
 }
 
-void Mesh::laplacianSmooth(int repeat) {
+void Mesh::sphereSubdivision()
+{
+    Mesh meshOut{ context };
+    meshOut.vertices = vertices;
+
+    std::map<Edge, uint32_t> divisions; // Edge -> new vertex
+
+    for (uint32_t i = 0; i < indices.size(); i += 3)
+    {
+        const uint32_t f0 = indices[i];
+        const uint32_t f1 = indices[i + 1];
+        const uint32_t f2 = indices[i + 2];
+
+        const glm::vec3 v0 = vertices[f0].position;
+        const glm::vec3 v1 = vertices[f1].position;
+        const glm::vec3 v2 = vertices[f2].position;
+
+        const uint32_t f3 = subdivideEdge(f0, f1, v0, v1, meshOut, divisions);
+        const uint32_t f4 = subdivideEdge(f1, f2, v1, v2, meshOut, divisions);
+        const uint32_t f5 = subdivideEdge(f2, f0, v2, v0, meshOut, divisions);
+
+        std::vector<uint32_t> newIndices = {
+            f0, f3, f5,
+            f3, f1, f4,
+            f4, f2, f5,
+            f3, f4, f5
+        };
+        meshOut.indices.insert(meshOut.indices.end(), newIndices.begin(), newIndices.end());
+    }
+    *this = meshOut;
+}
+
+void Mesh::laplacianSmooth(unsigned int smoothness) {
     
-    for (int k = 0; k < repeat; k++) {
+    for (int k = 0; k < smoothness; k++) {
         std::vector<Vertex> newVertices(vertices.size(), Vertex());
         std::vector< std::set< unsigned int > > neighbors(vertices.size());
 
@@ -410,4 +452,67 @@ void Mesh::computeSphericalTexCoords() {
         v.texCoord.x = abs(v.texCoord.x) / 3.14f;
         v.texCoord.y = abs(v.texCoord.y) / (2 * 3.14f);
     }
+}
+
+void Mesh::genSphere(unsigned int resolution)
+{
+    const double t = (1.0 + std::sqrt(5.0)) / 2.0;
+
+    // Vertices
+    Vertex v{};
+    v.position = glm::normalize(glm::vec3(-1.0, t, 0.0));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(1.0, t, 0.0));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(-1.0, -t, 0.0));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(1.0, -t, 0.0));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(0.0, -1.0, t));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(0.0, 1.0, t));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(0.0, -1.0, -t));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(0.0, 1.0, -t));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(t, 0.0, -1.0));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(t, 0.0, 1.0));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(-t, 0.0, -1.0));
+    vertices.emplace_back(v);
+    v.position = glm::normalize(glm::vec3(-t, 0.0, 1.0));
+    vertices.emplace_back(v);
+
+    // Faces
+    indices = { 
+        0, 11, 5,
+        0, 5, 1,
+        0, 1, 7,
+        0, 7, 10,
+        0, 10, 11,
+        1, 5, 9,
+        5, 11, 4,
+        11, 10, 2,
+        10, 7, 6,
+        7, 1, 8,
+        3, 9, 4,
+        3, 4, 2,
+        3, 2, 6,
+        3, 6, 8,
+        3, 8, 9,
+        4, 9, 5,
+        2, 4, 11,
+        6, 2, 10,
+        8, 6, 7,
+        9, 8, 1
+    };
+
+    for (int i = 0; i < resolution; i++) {
+        sphereSubdivision();
+    }
+
+    computeNormals();
+    computeSphericalTexCoords();
 }

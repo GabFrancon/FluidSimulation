@@ -40,7 +40,8 @@ public:
     void sampleFluidBall(Vec3f center, Real radius, Real precision = 0.5f);
     void sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness = 1);
     void sampleDistanceField(Vec3f bottomLeft, Vec3f topRight);
-    void sampleMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
+    void sampleFluidMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
+    void sampleBoundaryMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
     void solveSimulation();
     void reconstructSurface();
 

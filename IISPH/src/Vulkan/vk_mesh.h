@@ -76,6 +76,19 @@ namespace std {
     };
 };
 
+struct Edge {
+    uint32_t v0;
+    uint32_t v1;
+
+    Edge(uint32_t v0, uint32_t v1)
+        : v0(v0 < v1 ? v0 : v1)
+        , v1(v0 < v1 ? v1 : v0) {}
+
+    bool operator <(const Edge& o) const { return v0 < o.v0 || (v0 == o.v0 && v1 < o.v1); }
+    bool operator == (const Edge& o) const { return v0 == o.v0 && v1 == o.v1; }
+
+};
+
 class Mesh {
 public:
     VulkanContext* context;
@@ -95,9 +108,13 @@ public:
     void destroy();
 
     void loopSubdivision();
-    void laplacianSmooth(int repeat);
+    void sphereSubdivision();
+    void laplacianSmooth(unsigned int smoothness);
+
     void computeNormals();
     void computePlanarTexCoords();
     void computeSphericalTexCoords();
+
+    void genSphere(unsigned int resolution);
 };
 

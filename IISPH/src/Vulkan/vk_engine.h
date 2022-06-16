@@ -154,7 +154,6 @@ private:
     void      switchViewMode();
     void      generateSurfaceMesh();
     void      loadSurfaceMesh();
-    void      smoothSurfaceMesh();
     Texture*  getTexture(const std::string& name);
     Mesh*     getMesh(const std::string& name);
     Material* getMaterial(const std::string& name);

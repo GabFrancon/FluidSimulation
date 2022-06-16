@@ -738,18 +738,23 @@ std::vector<Vec3f> mesh_to_set_of_points(std::vector<Vec3f> points, std::vector<
     return r_points;
 }
 
-void IISPHsolver3D::sampleMesh(std::vector<Vec3f> vertices, std::vector<Index> indices) {
+void IISPHsolver3D::sampleFluidMesh(std::vector<Vec3f> vertices, std::vector<Index> indices) {
+    for (int i = 0; i < vertices.size(); i++)
+        _fPosition.push_back(vertices[i]);
+}
 
+void IISPHsolver3D::sampleBoundaryMesh(std::vector<Vec3f> vertices, std::vector<Index> indices) {
+    
     std::vector<Vec3f> particles = mesh_to_set_of_points(vertices, indices, _h / 2);
 
     if (particles.size() > 100) {
         concat(_bPosition, particles);
-        std::cout << "mesh sampled with interpolation technic" << std::endl;
+        std::cout << "boundary mesh sampled with interpolation technic" << std::endl;
     }
     else {
         for (int i = 0; i < vertices.size(); i+=15)
                 _bPosition.push_back(vertices[i]);
 
-        std::cout << "mesh sampled with subset of its vertices" << std::endl;
+        std::cout << "boundary mesh sampled with subset of its vertices" << std::endl;
     }
 }

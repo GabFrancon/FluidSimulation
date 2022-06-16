@@ -582,6 +582,7 @@ void VulkanEngine::initAssets() {
     getMesh("sphere")->upload(commandPool);
     getMesh("cube")->upload(commandPool);
     getMesh("bunny")->upload(commandPool);
+    getMesh("geodesic")->upload(commandPool);
 }
 
 void VulkanEngine::loadTextures() {
@@ -606,6 +607,10 @@ void VulkanEngine::loadMeshes() {
     Mesh bunny{ &context };
     bunny.loadFromObj(BUNNY_MODEL_PATH.c_str(), false, true);
     meshes["bunny"] = bunny;
+
+    Mesh geodesic{ &context };
+    geodesic.genSphere(3);
+    meshes["geodesic"] = geodesic;
 }
 
 void VulkanEngine::createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline) {    
@@ -641,7 +646,7 @@ void VulkanEngine::generateSurfaceMesh() {
     }
     surface.indices.assign(indices, indices + sphSolver.indicesCount());
 
-    surface.laplacianSmooth(4);
+    surface.laplacianSmooth(3);
     meshes["surface"] = surface;
 }
 
@@ -651,14 +656,6 @@ void VulkanEngine::loadSurfaceMesh() {
     surface.loadFromObj(filename.c_str(), true, true);
 
     meshes["surface"] = surface;
-}
-
-void VulkanEngine::smoothSurfaceMesh() {
-    vkDeviceWaitIdle(context.device);
-    getMesh("surface")->destroy();
-
-    getMesh("surface")->laplacianSmooth(1);
-    getMesh("surface")->upload(commandPool);
 }
 
 Texture* VulkanEngine::getTexture(const std::string& name)
@@ -671,8 +668,7 @@ Texture* VulkanEngine::getTexture(const std::string& name)
     return &(*it).second;
 }
 
-Mesh* VulkanEngine::getMesh(const std::string& name)
-{
+Mesh* VulkanEngine::getMesh(const std::string& name) {
     auto it = meshes.find(name);
 
     if (it == meshes.end())
@@ -719,7 +715,7 @@ void VulkanEngine::initSphSolver() {
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(20.0f, 30.0f, 14.0f);
+    Vec3f gridSize(16.0f, 30.0f, 16.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -730,7 +726,30 @@ void VulkanEngine::initSphSolver() {
 
     Vec3f fluidSize(gridSize.x - 2 * pCellSize, 5.0f, gridSize.z - 2 * pCellSize); // filled basin
     sphSolver.sampleFluidCube(Vec3f(pCellSize), fluidSize + pCellSize);
-    sphSolver.sampleFluidBall(gridSize / 2, 3.0f, spacing);
+
+    // obstacle
+    glm::vec3 position(gridSize.x / 2, 12.0f, gridSize.z / 2), color(0.8f, 0.7f, 0.2f), size(2.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    float angle(0.0f);
+
+    RenderObject waterDrop{};
+    waterDrop.mesh = getMesh("geodesic");
+    waterDrop.material = getMaterial("bas_bunny_fill_back");
+    waterDrop.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+    waterDrop.albedoColor = color;
+    renderables.push_back(waterDrop);
+
+    std::vector<Vec3f> vertices = std::vector<Vec3f>();
+    std::vector<Index> indices = std::vector<Index>();
+    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+
+    for (const Vertex& v : waterDrop.mesh->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        vertices.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    for (int i : waterDrop.mesh->indices)
+        indices.push_back(i);
+
+    sphSolver.sampleFluidMesh(vertices, indices);
 
     /*-----------------------------------------------------------------------------------------------------------------*/
 
@@ -743,12 +762,13 @@ void VulkanEngine::initSphSolver() {
 
     glm::vec3 position(gridSize.x / 2 + 2.0f, 2.0f, gridSize.z / 2 + 0.5f), color(0.8f, 0.7f, 0.2f), size(4.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
     float angle(0.0f);
-    
+
     RenderObject bunny{};
     bunny.mesh = getMesh("bunny");
     bunny.material = getMaterial("bas_bunny_fill_back");
     bunny.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
     bunny.albedoColor = color;
+    renderables.push_back(bunny);
 
     std::vector<Vec3f> vertices = std::vector<Vec3f>();
     std::vector<Index> indices = std::vector<Index>();
@@ -761,8 +781,7 @@ void VulkanEngine::initSphSolver() {
     for (int i : bunny.mesh->indices)
         indices.push_back(i);
 
-    renderables.push_back(bunny);
-    sphSolver.sampleMesh(vertices, indices);*/
+    sphSolver.sampleBoundaryMesh(vertices, indices);*/
     
     /*-----------------------------------------------------------------------------------------------------------------*/
 
@@ -894,7 +913,7 @@ void VulkanEngine::updateScene() {
             else
                 updateSurface();
 
-            if (frameCount >= 3000)
+            if (frameCount >= 2000)
                 glfwSetWindowShouldClose(window, true);
         }
         else {
@@ -954,7 +973,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    drawSingleObject(commandBuffer, 0); // bunny
+    //drawSingleObject(commandBuffer, 0); // bunny or water drop
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 
