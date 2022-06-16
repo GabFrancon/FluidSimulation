@@ -696,7 +696,7 @@ void VulkanEngine::initScene() {
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(38, 22, 27), glm::vec3(0.0f, 1.0f, 0.0f), -28.0f, -135.0f); 
+    camera = Camera(glm::vec3(26, 26, 26), glm::vec3(0.0f, 1.0f, 0.0f), -33.0f, -135.0f); 
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
@@ -728,7 +728,7 @@ void VulkanEngine::initSphSolver() {
     sphSolver.sampleFluidCube(Vec3f(pCellSize), fluidSize + pCellSize);
 
     // obstacle
-    glm::vec3 position(gridSize.x / 2, 12.0f, gridSize.z / 2), color(0.8f, 0.7f, 0.2f), size(2.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    glm::vec3 position(gridSize.x / 2, 18.0f, gridSize.z / 2), color(0.8f, 0.7f, 0.2f), size(2.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
     float angle(0.0f);
 
     RenderObject waterDrop{};
