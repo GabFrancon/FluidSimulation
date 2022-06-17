@@ -203,6 +203,10 @@ void IISPHsolver3D::reconstructSurface() {
     generateIsoSurface();
 }
 
+
+
+/*-------------------------------------------Neighbor search------------------------------------------------*/
+
 void IISPHsolver3D::buildNeighborGrid() {
     for (auto& fIndices : _fGrid) {
         size_t lastFluidGridSize = fIndices.size();
@@ -224,7 +228,7 @@ void IISPHsolver3D::buildNeighborGrid() {
 }
 
 void IISPHsolver3D::searchNeighbors() {
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int i = 0; i < _fluidCount; i++) {
         // search for fluid neighbor particles
         size_t lastFluidSize = _fNeighbors[i].size();
@@ -239,61 +243,6 @@ void IISPHsolver3D::searchNeighbors() {
         findBoundaryNeighbors(_bNeighbors[i], _fPosition[i], 2 * _h);
     }
 }
-
-void IISPHsolver3D::predictAdvection() {
-    #pragma omp parallel for
-    for (int i = 0; i < _fluidCount; i++)
-        computeDensity(i);
-
-    #pragma omp parallel for
-    for (int i = 0; i < _fluidCount; i++) {
-        computeAdvectionForces(i);
-        predictVelocity(i);
-        storeDii(i);
-    }
-
-    #pragma omp parallel for
-    for (int i = 0; i < _fluidCount; i++) {
-        predictDensity(i);
-        initPressure(i);
-        storeAii(i);
-    }
-}
-
-void IISPHsolver3D::pressureSolve() {
-    int l = 0;
-    _avgDensity = 0.0f;
-
-    while (((_avgDensity - _rho0) > _eta) || (l < 2))
-    {
-        #pragma omp parallel for
-        for (int i = 0; i < _fluidCount; i++)
-            storeSumDijPj(i);
-
-        #pragma omp parallel for
-        for (int i = 0; i < _fluidCount; i++)
-            computePressure(i);
-
-        computeError();
-        l++;
-    }
-}
-
-void IISPHsolver3D::integration() {
-    #pragma omp parallel for
-    for (int i = 0; i < _fluidCount; i++)
-        computePressureForces(i);
-
-    #pragma omp parallel for
-    for (int i = 0; i < _fluidCount; i++) {
-        updateVelocity(i);
-        updatePosition(i);
-    }
-}
-
-
-
-/*-------------------------------------------Neighbor search------------------------------------------------*/
 
 void IISPHsolver3D::fillFluidGrid(int i) {
     int id = _pGridHelper.cellID(_fPosition[i]);
@@ -356,6 +305,57 @@ void IISPHsolver3D::findBoundaryNeighbors(std::vector< Index >& neighbors, Vec3f
 
 
 /*-----------------------------------------Particle simulation------------------------------------------------*/
+
+void IISPHsolver3D::predictAdvection() {
+#pragma omp parallel for
+    for (int i = 0; i < _fluidCount; i++)
+        computeDensity(i);
+
+#pragma omp parallel for
+    for (int i = 0; i < _fluidCount; i++) {
+        computeAdvectionForces(i);
+        predictVelocity(i);
+        storeDii(i);
+    }
+
+#pragma omp parallel for
+    for (int i = 0; i < _fluidCount; i++) {
+        predictDensity(i);
+        initPressure(i);
+        storeAii(i);
+    }
+}
+
+void IISPHsolver3D::pressureSolve() {
+    int l = 0;
+    _avgDensity = 0.0f;
+
+    while (((_avgDensity - _rho0) > _eta) || (l < 2))
+    {
+#pragma omp parallel for
+        for (int i = 0; i < _fluidCount; i++)
+            storeSumDijPj(i);
+
+#pragma omp parallel for
+        for (int i = 0; i < _fluidCount; i++)
+            computePressure(i);
+
+        computeError();
+        l++;
+    }
+}
+
+void IISPHsolver3D::integration() {
+#pragma omp parallel for
+    for (int i = 0; i < _fluidCount; i++)
+        computePressureForces(i);
+
+#pragma omp parallel for
+    for (int i = 0; i < _fluidCount; i++) {
+        updateVelocity(i);
+        updatePosition(i);
+    }
+}
 
 void IISPHsolver3D::computePsi(int i) {
     Real sumK = 0.0f;
@@ -743,18 +743,7 @@ void IISPHsolver3D::sampleFluidMesh(std::vector<Vec3f> vertices, std::vector<Ind
         _fPosition.push_back(vertices[i]);
 }
 
-void IISPHsolver3D::sampleBoundaryMesh(std::vector<Vec3f> vertices, std::vector<Index> indices) {
-    
-    std::vector<Vec3f> particles = mesh_to_set_of_points(vertices, indices, _h / 2);
-
-    if (particles.size() > 100) {
-        concat(_bPosition, particles);
-        std::cout << "boundary mesh sampled with interpolation technic" << std::endl;
-    }
-    else {
-        for (int i = 0; i < vertices.size(); i+=15)
-                _bPosition.push_back(vertices[i]);
-
-        std::cout << "boundary mesh sampled with subset of its vertices" << std::endl;
-    }
+void IISPHsolver3D::sampleBoundaryMesh(std::vector<Vec3f> vertices, std::vector<Index> indices) {   
+    for (int i = 0; i < vertices.size(); i++)
+        _bPosition.push_back(vertices[i]);
 }

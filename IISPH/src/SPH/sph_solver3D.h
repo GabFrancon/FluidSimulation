@@ -27,23 +27,31 @@ public:
         _eta  = eta;
 
         // fixed constants
-        _dt = 0.00835f;
+        _dt = 0.00835f; // 120fps
         _g  = Vec3f(0.0f, -9.81f, 0.0f);
         _omega = 0.5f;
 
         // derived properties
         _m0 = _rho0 * cube(_h);
+        _c  = std::fabs(_g.y) / _eta;
     }
 
+    /*-------------------------------------------Main functions------------------------------------------------*/
+
     void prepare();
+
     void sampleFluidCube(Vec3f bottomLeft, Vec3f topRight);
     void sampleFluidBall(Vec3f center, Real radius, Real precision = 0.5f);
     void sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness = 1);
     void sampleDistanceField(Vec3f bottomLeft, Vec3f topRight);
     void sampleFluidMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
     void sampleBoundaryMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
+
     void solveSimulation();
     void reconstructSurface();
+
+
+    /*-------------------------------------------Inline utilities------------------------------------------------*/
 
     inline void setParticleHelper(Real cellSize, Vec3f gridSize) { _pGridHelper = GridHelper(cellSize, gridSize); }
     inline void setSurfaceHelper (Real cellSize, Vec3f gridSize) { _sGridHelper = GridHelper(cellSize, gridSize); }
@@ -70,24 +78,22 @@ public:
     
 
 private:
-    /*--------------------------------------------Main functions--------------------------------------------------*/
+   /*-------------------------------------------Neighbor search------------------------------------------------*/
 
     void buildNeighborGrid();
     void searchNeighbors();
-    void predictAdvection();
-    void pressureSolve();
-    void integration();
 
-
-    /*-------------------------------------------Neighbor search------------------------------------------------*/
-
-    void  fillFluidGrid(int i);
-    void  fillBoundaryGrid(int i);
-    void  findFluidNeighbors(std::vector< Index >& neighbors, Vec3f position, const float radius);
-    void  findBoundaryNeighbors(std::vector< Index >& neighbors, Vec3f position, const float radius);
+    void fillFluidGrid(int i);
+    void fillBoundaryGrid(int i);
+    void findFluidNeighbors(std::vector< Index >& neighbors, Vec3f position, const float radius);
+    void findBoundaryNeighbors(std::vector< Index >& neighbors, Vec3f position, const float radius);
 
 
     /*-----------------------------------------Particle simulation------------------------------------------------*/
+
+    void predictAdvection();
+    void pressureSolve();
+    void integration();
 
     void computePsi(int i);
     void computeDensity(int i);
@@ -182,6 +188,7 @@ private:
     Real _avgDensity    = 0.0f;   // average density of fluid
 
     // SPH coefficients
+    Real  _dtCFL;                 // time step from CFL condition
     Real  _dt;                    // time step
     Real  _nu;                    // kinematic viscosity
     Real  _eta;                   // compressibility
@@ -190,5 +197,6 @@ private:
     Vec3f _g;                     // gravity
     Real  _m0;                    // rest mass
     Real  _omega;                 // Jacobi's relaxed coeff
+    Real  _c;                     // speed of sound
 };
 

@@ -173,8 +173,8 @@ void VulkanEngine::initInterface() {
     createWindow();
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     glfwSetKeyCallback(window, keyboardCallback);
-    glfwSetCursorPosCallback(window, mouseCallback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    //glfwSetCursorPosCallback(window, mouseCallback);
+    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 void VulkanEngine::createWindow() {
@@ -582,7 +582,7 @@ void VulkanEngine::initAssets() {
     getMesh("sphere")->upload(commandPool);
     getMesh("cube")->upload(commandPool);
     getMesh("bunny")->upload(commandPool);
-    getMesh("geodesic")->upload(commandPool);
+    getMesh("glass")->upload(commandPool);
 }
 
 void VulkanEngine::loadTextures() {
@@ -596,9 +596,9 @@ void VulkanEngine::loadTextures() {
 }
 
 void VulkanEngine::loadMeshes() {
-    Mesh sphereMesh{ &context };
-    sphereMesh.loadFromObj(SPHERE_MODEL_PATH.c_str(), false, false);
-    meshes["sphere"] = sphereMesh;
+    Mesh sphere{ &context };
+    sphere.loadFromObj(SPHERE_MODEL_PATH.c_str(), false, false);
+    meshes["sphere"] = sphere;
 
     Mesh cube{ &context };
     cube.loadFromObj(CUBE_MODEL_PATH.c_str(), false, false);
@@ -608,9 +608,23 @@ void VulkanEngine::loadMeshes() {
     bunny.loadFromObj(BUNNY_MODEL_PATH.c_str(), false, true);
     meshes["bunny"] = bunny;
 
+    Mesh glass{ &context };
+    glass.loadFromObj(GLASS_MODEL_PATH.c_str(), true, true);
+    meshes["glass"] = glass;
+
     Mesh geodesic{ &context };
-    geodesic.genSphere(3);
-    meshes["geodesic"] = geodesic;
+    geodesic.genSphere(0);
+    meshes["geodesic0"] = geodesic;
+
+    geodesic.sphereSubdivision();
+    meshes["geodesic1"] = geodesic;
+
+    geodesic.sphereSubdivision();
+    meshes["geodesic2"] = geodesic;
+
+    geodesic.sphereSubdivision();
+    geodesic.genSphere(1);
+    meshes["geodesic3"] = geodesic;
 }
 
 void VulkanEngine::createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline) {    
@@ -623,11 +637,11 @@ void VulkanEngine::createMaterial(const std::string name, Texture* texture, Vulk
 void VulkanEngine::switchViewMode() {
 
     if (wireframeViewOn) {
-        renderables[0].material = getMaterial("bas_bunny_line_back"); // bunny
+        renderables[0].material = getMaterial("bas_bunny_line_back"); // bunny or glass
         renderables[renderables.size() - 3].material = getMaterial("bas_col_line_back"); // surface
     }
     else {
-        renderables[0].material = getMaterial("bas_bunny_fill_back"); // bunny
+        renderables[0].material = getMaterial("bas_bunny_fill_back"); // bunny or glass
         renderables[renderables.size() - 3].material = getMaterial("bas_col_fill_back"); // surface
     }
 }
@@ -646,7 +660,7 @@ void VulkanEngine::generateSurfaceMesh() {
     }
     surface.indices.assign(indices, indices + sphSolver.indicesCount());
 
-    surface.laplacianSmooth(3);
+    surface.laplacianSmooth(3); // post-processing
     meshes["surface"] = surface;
 }
 
@@ -732,7 +746,7 @@ void VulkanEngine::initSphSolver() {
     float angle(0.0f);
 
     RenderObject waterDrop{};
-    waterDrop.mesh = getMesh("geodesic");
+    waterDrop.mesh = getMesh("geodesic3");
     waterDrop.material = getMaterial("bas_bunny_fill_back");
     waterDrop.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
     waterDrop.albedoColor = color;
@@ -740,16 +754,74 @@ void VulkanEngine::initSphSolver() {
 
     std::vector<Vec3f> vertices = std::vector<Vec3f>();
     std::vector<Index> indices = std::vector<Index>();
-    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
 
-    for (const Vertex& v : waterDrop.mesh->vertices) {
+    for (int i : getMesh("geodesic3")->indices)
+        indices.push_back(i);
+
+
+
+
+    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic3")->vertices) {
         p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
         vertices.push_back(Vec3f(p.x, p.y, p.z));
     }
-    for (int i : waterDrop.mesh->indices)
-        indices.push_back(i);
-
     sphSolver.sampleFluidMesh(vertices, indices);
+
+    size -= spacing;
+    vertices.clear();
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic2")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        vertices.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    sphSolver.sampleFluidMesh(vertices, indices);
+
+    size -= spacing;
+    vertices.clear();
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic2")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        vertices.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    sphSolver.sampleFluidMesh(vertices, indices);
+
+    size -= spacing;
+    vertices.clear();
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic2")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        vertices.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    sphSolver.sampleFluidMesh(vertices, indices);
+
+    size -= spacing;
+    vertices.clear();
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic2")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        vertices.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    sphSolver.sampleFluidMesh(vertices, indices);
+
+    size -= spacing;
+    vertices.clear();
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic1")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        vertices.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    sphSolver.sampleFluidMesh(vertices, indices);
+
+    size -= spacing;
+    vertices.clear();
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic0")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        vertices.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    sphSolver.sampleFluidMesh(vertices, indices);
+
 
     /*-----------------------------------------------------------------------------------------------------------------*/
 
@@ -783,6 +855,35 @@ void VulkanEngine::initSphSolver() {
 
     sphSolver.sampleBoundaryMesh(vertices, indices);*/
     
+    /*-----------------------------------------------------------------------------------------------------------------*/
+
+    /*----------------------------------"water flow in a container" scenario-------------------------------------------*/
+    /*Vec3f fluidSize(1.0f, 15.0f, 1.0f);
+    Vec3f offset = Vec3f(gridSize.x / 2, 12.0f, gridSize.z/ 2);
+    sphSolver.sampleFluidCube(offset, fluidSize + offset);
+
+    glm::vec3 position(gridSize.x / 2, 2.0f, gridSize.z / 2), color(0.8f, 0.7f, 0.2f), size(4.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    float angle(0.0f);
+
+    RenderObject bunny{};
+    bunny.mesh = getMesh("bunny");
+    bunny.material = getMaterial("bas_bunny_fill_back");
+    bunny.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+    bunny.albedoColor = color;
+    renderables.push_back(bunny);
+
+    std::vector<Vec3f> vertices = std::vector<Vec3f>();
+    std::vector<Index> indices = std::vector<Index>();
+    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+
+    for (const Vertex& v : glass.mesh->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        vertices.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    for (int i : glass.mesh->indices)
+        indices.push_back(i);
+
+    sphSolver.sampleBoundaryMesh(vertices, indices);*/
     /*-----------------------------------------------------------------------------------------------------------------*/
 
 
@@ -897,7 +998,7 @@ void VulkanEngine::updateScene() {
     lastClockTime = currentClockTime;
 
     // update camera
-    camera.processKeyboardInput(window, dt);
+    //camera.processKeyboardInput(window, dt);
 
     if (!appTimerStopped) {
         appTimer += dt;
@@ -912,7 +1013,7 @@ void VulkanEngine::updateScene() {
             else
                 updateSurface();
 
-            if (frameCount >= 2000)
+            if (frameCount > 1200)
                 glfwSetWindowShouldClose(window, true);
         }
         else {
@@ -973,7 +1074,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    //drawSingleObject(commandBuffer, 0); // bunny or water drop
+    //drawSingleObject(commandBuffer, 0); // bunny or glass
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 
