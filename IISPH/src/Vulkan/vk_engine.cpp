@@ -582,7 +582,6 @@ void VulkanEngine::initAssets() {
     getMesh("sphere")->upload(commandPool);
     getMesh("cube")->upload(commandPool);
     getMesh("bunny")->upload(commandPool);
-    getMesh("glass")->upload(commandPool);
 }
 
 void VulkanEngine::loadTextures() {
@@ -607,10 +606,6 @@ void VulkanEngine::loadMeshes() {
     Mesh bunny{ &context };
     bunny.loadFromObj(BUNNY_MODEL_PATH.c_str(), false, true);
     meshes["bunny"] = bunny;
-
-    Mesh glass{ &context };
-    glass.loadFromObj(GLASS_MODEL_PATH.c_str(), true, true);
-    meshes["glass"] = glass;
 
     Mesh geodesic{ &context };
     geodesic.genSphere(0);

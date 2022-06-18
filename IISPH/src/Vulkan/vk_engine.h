@@ -27,7 +27,6 @@ static const int MAX_FRAMES_IN_FLIGHT  = 2;
 static const std::string SPHERE_MODEL_PATH  = "assets/models/sphere.obj";
 static const std::string CUBE_MODEL_PATH    = "assets/models/cube.obj";
 static const std::string BUNNY_MODEL_PATH   = "assets/models/bunny.obj";
-static const std::string GLASS_MODEL_PATH   = "assets/models/glass.obj";
 
 static const std::string WATER_TEXTURE_PATH = "assets/textures/water.jpg";
 static const std::string BUNNY_TEXTURE_PATH = "assets/textures/bunny.png";
