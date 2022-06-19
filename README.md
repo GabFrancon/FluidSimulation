@@ -19,3 +19,9 @@ Particle simulation and surface reconstruction (Vulkan engine - classic view)
 <p float="center">
   <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/drop_ball.gif"/>
 </p>
+
+Rendering performed with Cycles
+<p float="center">
+  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/drop_ball_blender.gif"/>
+</p>
+
