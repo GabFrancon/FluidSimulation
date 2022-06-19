@@ -744,6 +744,6 @@ void IISPHsolver3D::sampleFluidMesh(std::vector<Vec3f> vertices, std::vector<Ind
 }
 
 void IISPHsolver3D::sampleBoundaryMesh(std::vector<Vec3f> vertices, std::vector<Index> indices) {   
-    for (int i = 0; i < vertices.size(); i++)
+    for (int i = 0; i < vertices.size(); i+=15)
         _bPosition.push_back(vertices[i]);
 }

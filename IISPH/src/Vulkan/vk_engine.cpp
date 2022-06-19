@@ -661,7 +661,7 @@ void VulkanEngine::generateSurfaceMesh() {
 
 void VulkanEngine::loadSurfaceMesh() {
     Mesh surface{ &context };
-    std::string filename = "../results/meshes/surface_" + frameID(frameCount) + ".obj";
+    std::string filename = "../results/meshes_break/surface_" + frameID(frameCount) + ".obj";
     surface.loadFromObj(filename.c_str(), true, true);
 
     meshes["surface"] = surface;
@@ -705,7 +705,7 @@ void VulkanEngine::initScene() {
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(26, 26, 26), glm::vec3(0.0f, 1.0f, 0.0f), -33.0f, -135.0f); 
+    camera = Camera(glm::vec3(35, 22, 28), glm::vec3(0.0f, 1.0f, 0.0f), -25.0f, -135.0f); 
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
@@ -724,7 +724,7 @@ void VulkanEngine::initSphSolver() {
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(16.0f, 30.0f, 16.0f);
+    Vec3f gridSize(25.0f, 30.0f, 14.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -733,7 +733,7 @@ void VulkanEngine::initSphSolver() {
 
     /*---------------------------------------"drop in a basin" scenario------------------------------------------------*/
 
-    Vec3f fluidSize(gridSize.x - 2 * pCellSize, 5.0f, gridSize.z - 2 * pCellSize); // filled basin
+    /*Vec3f fluidSize(gridSize.x - 2 * pCellSize, 5.0f, gridSize.z - 2 * pCellSize); // filled basin
     sphSolver.sampleFluidCube(Vec3f(pCellSize), fluidSize + pCellSize);
 
     // obstacle
@@ -752,9 +752,6 @@ void VulkanEngine::initSphSolver() {
 
     for (int i : getMesh("geodesic3")->indices)
         indices.push_back(i);
-
-
-
 
     glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
     for (const Vertex& v : getMesh("geodesic3")->vertices) {
@@ -815,7 +812,7 @@ void VulkanEngine::initSphSolver() {
         p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
         vertices.push_back(Vec3f(p.x, p.y, p.z));
     }
-    sphSolver.sampleFluidMesh(vertices, indices);
+    sphSolver.sampleFluidMesh(vertices, indices);*/
 
 
     /*-----------------------------------------------------------------------------------------------------------------*/
@@ -824,15 +821,15 @@ void VulkanEngine::initSphSolver() {
 
     /*-----------------------------------"breaking dam on a bunny" scenario--------------------------------------------*/
 
-    /*Vec3f fluidSize(5.0f, 11.0f, gridSize.z - 2 * pCellSize);
+    Vec3f fluidSize(5.0f, 12.0f, gridSize.z - 2 * pCellSize);
     sphSolver.sampleFluidCube(Vec3f(pCellSize), fluidSize + pCellSize);
 
-    glm::vec3 position(gridSize.x / 2 + 2.0f, 2.0f, gridSize.z / 2 + 0.5f), color(0.8f, 0.7f, 0.2f), size(4.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    glm::vec3 position(gridSize.x / 2 + 3.0f, 2.5f, gridSize.z / 2 + 1.0f), color(0.8f, 0.7f, 0.2f), size(5.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
     float angle(0.0f);
 
     RenderObject bunny{};
     bunny.mesh = getMesh("bunny");
-    bunny.material = getMaterial("bas_bunny_fill_back");
+    bunny.material = getMaterial("bas_col_fill_back");
     bunny.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
     bunny.albedoColor = color;
     renderables.push_back(bunny);
@@ -848,7 +845,7 @@ void VulkanEngine::initSphSolver() {
     for (int i : bunny.mesh->indices)
         indices.push_back(i);
 
-    sphSolver.sampleBoundaryMesh(vertices, indices);*/
+    sphSolver.sampleBoundaryMesh(vertices, indices);
     
     /*-----------------------------------------------------------------------------------------------------------------*/
 
@@ -1008,12 +1005,12 @@ void VulkanEngine::updateScene() {
             else
                 updateSurface();
 
-            if (frameCount > 1200)
+            if (frameCount >= 1500)
                 glfwSetWindowShouldClose(window, true);
         }
         else {
-            if (frameCount >= 1320)
-                frameCount = 0;
+            if (frameCount >= 1500)
+                frameCount = 1;
 
             // upload next surface mesh from .obj file
             updateSurface();
@@ -1069,7 +1066,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    //drawSingleObject(commandBuffer, 0); // bunny or glass
+    drawSingleObject(commandBuffer, 0); // bunny or glass
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 

@@ -8,16 +8,29 @@
 
 
 
-Data :
 
-breaking dam (with bunny boundary) :
+breaking dam :
  
-- fluid particles      =    59 136
-- boundary particles   =    54 621
-- distance field nodes = 6 327 937
+- fluid particles      =    50 000
+- boundary particles   =    50 000
+- distance field nodes = 5 500 000
 
-- h  = 0.25m
-- dt = 0.01s
+- h  = 0.25 m
+- dt = 0.00833 s
 
-- computation time for particles = 1.2s / frame
-- computation time for surface   = 5.4s / frame
+- computation time for particles = 101 ms / frame
+- computation time for surface   = 504 ms / frame
+
+
+
+drop ball :
+ 
+- fluid particles      =    80 000
+- boundary particles   =    40 000
+- distance field nodes = 5 500 000
+
+- h  = 0.25 m
+- dt = 0.00833 s
+
+- computation time for particles = 150 ms / frame
+- computation time for surface   = 600 ms / frame
