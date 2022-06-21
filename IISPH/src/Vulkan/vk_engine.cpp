@@ -173,8 +173,8 @@ void VulkanEngine::initInterface() {
     createWindow();
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     glfwSetKeyCallback(window, keyboardCallback);
-    //glfwSetCursorPosCallback(window, mouseCallback);
-    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetCursorPosCallback(window, mouseCallback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 void VulkanEngine::createWindow() {
@@ -618,7 +618,6 @@ void VulkanEngine::loadMeshes() {
     meshes["geodesic2"] = geodesic;
 
     geodesic.sphereSubdivision();
-    geodesic.genSphere(1);
     meshes["geodesic3"] = geodesic;
 }
 
@@ -661,7 +660,7 @@ void VulkanEngine::generateSurfaceMesh() {
 
 void VulkanEngine::loadSurfaceMesh() {
     Mesh surface{ &context };
-    std::string filename = "../results/meshes_break/surface_" + frameID(frameCount) + ".obj";
+    std::string filename = "../results/meshes/surface_" + frameID(frameCount) + ".obj";
     surface.loadFromObj(filename.c_str(), true, true);
 
     meshes["surface"] = surface;
@@ -709,183 +708,13 @@ void VulkanEngine::initScene() {
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
-    // init SPH solver
-    initSphSolver();
+    // init SPH solver with one of the predefined scenario
+    dropOnTheBeach();
 
     // init render objects
     initParticles();
     initSurface();
     initRoom();
-}
-
-void VulkanEngine::initSphSolver() {
-    Real spacing = 1.0f / 4;
-    sphSolver = IISPHsolver3D(spacing);
-
-    Real  pCellSize = 2 * spacing;
-    Real  sCellSize = spacing / 2;
-    Vec3f gridSize(25.0f, 30.0f, 14.0f);
-
-    sphSolver.setParticleHelper(pCellSize, gridSize);
-    sphSolver.setSurfaceHelper(sCellSize, gridSize);
-
-    // sample fluid mass
-
-    /*---------------------------------------"drop in a basin" scenario------------------------------------------------*/
-
-    /*Vec3f fluidSize(gridSize.x - 2 * pCellSize, 5.0f, gridSize.z - 2 * pCellSize); // filled basin
-    sphSolver.sampleFluidCube(Vec3f(pCellSize), fluidSize + pCellSize);
-
-    // obstacle
-    glm::vec3 position(gridSize.x / 2, 18.0f, gridSize.z / 2), color(0.8f, 0.7f, 0.2f), size(2.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
-    float angle(0.0f);
-
-    RenderObject waterDrop{};
-    waterDrop.mesh = getMesh("geodesic3");
-    waterDrop.material = getMaterial("bas_bunny_fill_back");
-    waterDrop.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-    waterDrop.albedoColor = color;
-    renderables.push_back(waterDrop);
-
-    std::vector<Vec3f> vertices = std::vector<Vec3f>();
-    std::vector<Index> indices = std::vector<Index>();
-
-    for (int i : getMesh("geodesic3")->indices)
-        indices.push_back(i);
-
-    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
-    for (const Vertex& v : getMesh("geodesic3")->vertices) {
-        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
-        vertices.push_back(Vec3f(p.x, p.y, p.z));
-    }
-    sphSolver.sampleFluidMesh(vertices, indices);
-
-    size -= spacing;
-    vertices.clear();
-    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
-    for (const Vertex& v : getMesh("geodesic2")->vertices) {
-        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
-        vertices.push_back(Vec3f(p.x, p.y, p.z));
-    }
-    sphSolver.sampleFluidMesh(vertices, indices);
-
-    size -= spacing;
-    vertices.clear();
-    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
-    for (const Vertex& v : getMesh("geodesic2")->vertices) {
-        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
-        vertices.push_back(Vec3f(p.x, p.y, p.z));
-    }
-    sphSolver.sampleFluidMesh(vertices, indices);
-
-    size -= spacing;
-    vertices.clear();
-    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
-    for (const Vertex& v : getMesh("geodesic2")->vertices) {
-        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
-        vertices.push_back(Vec3f(p.x, p.y, p.z));
-    }
-    sphSolver.sampleFluidMesh(vertices, indices);
-
-    size -= spacing;
-    vertices.clear();
-    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
-    for (const Vertex& v : getMesh("geodesic2")->vertices) {
-        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
-        vertices.push_back(Vec3f(p.x, p.y, p.z));
-    }
-    sphSolver.sampleFluidMesh(vertices, indices);
-
-    size -= spacing;
-    vertices.clear();
-    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
-    for (const Vertex& v : getMesh("geodesic1")->vertices) {
-        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
-        vertices.push_back(Vec3f(p.x, p.y, p.z));
-    }
-    sphSolver.sampleFluidMesh(vertices, indices);
-
-    size -= spacing;
-    vertices.clear();
-    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
-    for (const Vertex& v : getMesh("geodesic0")->vertices) {
-        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
-        vertices.push_back(Vec3f(p.x, p.y, p.z));
-    }
-    sphSolver.sampleFluidMesh(vertices, indices);*/
-
-
-    /*-----------------------------------------------------------------------------------------------------------------*/
-
-
-
-    /*-----------------------------------"breaking dam on a bunny" scenario--------------------------------------------*/
-
-    Vec3f fluidSize(5.0f, 12.0f, gridSize.z - 2 * pCellSize);
-    sphSolver.sampleFluidCube(Vec3f(pCellSize), fluidSize + pCellSize);
-
-    glm::vec3 position(gridSize.x / 2 + 3.0f, 2.5f, gridSize.z / 2 + 1.0f), color(0.8f, 0.7f, 0.2f), size(5.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
-    float angle(0.0f);
-
-    RenderObject bunny{};
-    bunny.mesh = getMesh("bunny");
-    bunny.material = getMaterial("bas_col_fill_back");
-    bunny.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-    bunny.albedoColor = color;
-    renderables.push_back(bunny);
-
-    std::vector<Vec3f> vertices = std::vector<Vec3f>();
-    std::vector<Index> indices = std::vector<Index>();
-    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
-
-    for (const Vertex& v : bunny.mesh->vertices) {
-        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
-        vertices.push_back(Vec3f(p.x, p.y, p.z));
-    }
-    for (int i : bunny.mesh->indices)
-        indices.push_back(i);
-
-    sphSolver.sampleBoundaryMesh(vertices, indices);
-    
-    /*-----------------------------------------------------------------------------------------------------------------*/
-
-    /*----------------------------------"water flow in a container" scenario-------------------------------------------*/
-    /*Vec3f fluidSize(1.0f, 15.0f, 1.0f);
-    Vec3f offset = Vec3f(gridSize.x / 2, 12.0f, gridSize.z/ 2);
-    sphSolver.sampleFluidCube(offset, fluidSize + offset);
-
-    glm::vec3 position(gridSize.x / 2, 2.0f, gridSize.z / 2), color(0.8f, 0.7f, 0.2f), size(4.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
-    float angle(0.0f);
-
-    RenderObject bunny{};
-    bunny.mesh = getMesh("bunny");
-    bunny.material = getMaterial("bas_bunny_fill_back");
-    bunny.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-    bunny.albedoColor = color;
-    renderables.push_back(bunny);
-
-    std::vector<Vec3f> vertices = std::vector<Vec3f>();
-    std::vector<Index> indices = std::vector<Index>();
-    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
-
-    for (const Vertex& v : glass.mesh->vertices) {
-        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
-        vertices.push_back(Vec3f(p.x, p.y, p.z));
-    }
-    for (int i : glass.mesh->indices)
-        indices.push_back(i);
-
-    sphSolver.sampleBoundaryMesh(vertices, indices);*/
-    /*-----------------------------------------------------------------------------------------------------------------*/
-
-
-    // sample boundaries
-    sphSolver.sampleBoundaryBox(Vec3f(0.0f), gridSize);
-
-    // sample distance field
-    sphSolver.sampleDistanceField(Vec3f(0.0f), gridSize);
-
-    sphSolver.prepare();
 }
 
 void VulkanEngine::initParticles() {
@@ -950,9 +779,9 @@ void VulkanEngine::initSurface() {
 }
 
 void VulkanEngine::initRoom() {
-    float sizeX = sphSolver.sizeX() - 2 * sphSolver.cellSize();
-    float sizeY = sphSolver.sizeY() - 2 * sphSolver.cellSize();
-    float sizeZ = sphSolver.sizeZ() - 2 * sphSolver.cellSize();
+    float sizeX = sphSolver.size().x - 2 * sphSolver.cellSize();
+    float sizeY = sphSolver.size().y - 2 * sphSolver.cellSize();
+    float sizeZ = sphSolver.size().z - 2 * sphSolver.cellSize();
 
     glm::vec3 rotationAxis(0.0f, 1.0f, 0.0f);
     float angle = 0.0f;
@@ -990,14 +819,14 @@ void VulkanEngine::updateScene() {
     lastClockTime = currentClockTime;
 
     // update camera
-    //camera.processKeyboardInput(window, dt);
+    camera.processKeyboardInput(window, dt);
 
     if (!appTimerStopped) {
         appTimer += dt;
 
         if (simulationOn) {
             // solve SPH equations
-            updateSphSolver();
+            solveSimulation();
            
             // update render objects
             if(particleViewOn)
@@ -1005,21 +834,23 @@ void VulkanEngine::updateScene() {
             else
                 updateSurface();
 
+            // check the stop condition
             if (frameCount >= 1500)
                 glfwSetWindowShouldClose(window, true);
         }
         else {
-            if (frameCount >= 1500)
-                frameCount = 1;
-
             // upload next surface mesh from .obj file
             updateSurface();
+
+            // check the restart condition
+            if (frameCount >= 1500)
+                frameCount = 1;
         }
         frameCount++;
     }
 }
 
-void VulkanEngine::updateSphSolver() {
+void VulkanEngine::solveSimulation() {
     auto start = Clock::now();
 
     for (int i = 0; i < 2; i++)
@@ -1066,7 +897,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    drawSingleObject(commandBuffer, 0); // bunny or glass
+    //drawSingleObject(commandBuffer, 0); // bunny or glass
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 
@@ -1167,4 +998,240 @@ void VulkanEngine::showStatistics() {
         << "time for SPH simulation : " << std::setw(6) << sphTimeComputation << " ms\n" 
         << "time for surface reconstruction : " << std::setw(6) << surfaceTimeComputation << " ms\n"
         << std::endl;
+}
+
+
+
+// Scenarii
+void VulkanEngine::dropOnTheBeach() {
+    // init solver
+    Real spacing = 1.0f / 4;
+    sphSolver = IISPHsolver3D(spacing);
+
+    Real  pCellSize = 2 * spacing;
+    Real  sCellSize = spacing / 2;
+    Vec3f gridSize(16.0f, 30.0f, 16.0f);
+
+    sphSolver.setParticleHelper(pCellSize, gridSize);
+    sphSolver.setSurfaceHelper(sCellSize, gridSize);
+
+    // sample fluid mass
+    std::vector<Vec3f> fluidPos = std::vector<Vec3f>();
+
+    RenderObject object{};
+    renderables.push_back(object);
+
+    Vec3f fluidSize(gridSize.x - 2 * pCellSize, 5.0f, gridSize.z - 2 * pCellSize);
+    Sampler::cubeVolume(fluidPos, pCellSize, Vec3f(pCellSize), fluidSize + pCellSize);
+
+    glm::vec3 position(gridSize.x / 2, 18.0f, gridSize.z / 2), color(0.8f, 0.7f, 0.2f), size(2.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    float angle(0.0f);
+
+
+    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic3")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        fluidPos.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    size -= spacing;
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic3")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        fluidPos.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    size -= spacing;
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic2")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        fluidPos.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    size -= spacing;
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic2")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        fluidPos.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    size -= spacing;
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic2")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        fluidPos.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    size -= spacing;
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic1")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        fluidPos.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    size -= spacing;
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic1")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        fluidPos.push_back(Vec3f(p.x, p.y, p.z));
+    }
+    size -= spacing;
+    modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    for (const Vertex& v : getMesh("geodesic0")->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        fluidPos.push_back(Vec3f(p.x, p.y, p.z));
+    }
+
+    // sample boundaries
+    std::vector<Vec3f> boundaryPos = std::vector<Vec3f>();
+
+    // finish initialization
+    sphSolver.prepareSolver(fluidPos, boundaryPos);
+}
+
+void VulkanEngine::bunnyBath() {
+    // init solver
+    Real spacing = 1.0f / 4;
+    sphSolver = IISPHsolver3D(spacing);
+
+    Real  pCellSize = 2 * spacing;
+    Real  sCellSize = spacing / 2;
+    Vec3f gridSize(25.0f, 30.0f, 14.0f);
+
+    sphSolver.setParticleHelper(pCellSize, gridSize);
+    sphSolver.setSurfaceHelper(sCellSize, gridSize);
+
+    // sample fluid mass
+    std::vector<Vec3f> fluidPos = std::vector<Vec3f>();
+
+    Vec3f fluidSize(5.0f, 12.0f, gridSize.z - 2 * pCellSize);
+    Sampler::cubeVolume(fluidPos, pCellSize, Vec3f(pCellSize), fluidSize + pCellSize);
+
+    // sample boundaries
+    std::vector<Vec3f> boundaryPos = std::vector<Vec3f>();
+
+    glm::vec3 position(gridSize.x / 2 + 3.0f, 2.5f, gridSize.z / 2 + 1.0f), color(0.8f, 0.7f, 0.2f), size(5.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    float angle(0.0f);
+
+    RenderObject bunny{};
+    bunny.mesh = getMesh("bunny");
+    bunny.material = getMaterial("bas_col_fill_back");
+    bunny.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+    bunny.albedoColor = color;
+    renderables.push_back(bunny);
+
+    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+
+    for (const Vertex& v : bunny.mesh->vertices) {
+        p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
+        boundaryPos.push_back(Vec3f(p.x, p.y, p.z));
+    }
+
+    // finish initialization
+    sphSolver.prepareSolver(fluidPos, boundaryPos);
+}
+
+void VulkanEngine::glassOfFriendship() {
+    // init solver
+    Real spacing = 1.0f / 4;
+    sphSolver = IISPHsolver3D(spacing);
+
+    Real  pCellSize = 2 * spacing;
+    Real  sCellSize = spacing / 2;
+    Vec3f gridSize(35.0f, 30.0f, 12.0f);
+
+    sphSolver.setParticleHelper(pCellSize, gridSize);
+    sphSolver.setSurfaceHelper(sCellSize, gridSize);
+
+    // sample boundaries
+    std::vector<Vec3f> boundaryPos = std::vector<Vec3f>();
+
+    Vec3f size{}, offset{}, bottomLeft{}, topRight{};
+    Real  offset50 = 0.50f * pCellSize;
+    Real  offset100 = 1.00f * pCellSize;
+
+        // lower container
+    Sampler::cylinderSurface(boundaryPos, spacing, Vec3f(gridSize.x / 2, 0.0f, gridSize.z / 2), 1.0f, 4.0f);
+
+    /*size = {gridSize.x / 2 + 3, 10.0f, gridSize.z};
+    offset = { gridSize.x / 2 - 3, 0.0f, 0.0f};
+    
+    bottomLeft = offset;
+    topRight = size + offset;
+
+    for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50)
+        for (float k = bottomLeft.z + offset100; k < topRight.z - offset50; k += offset50) {
+            boundaryPos.push_back(Vec3f(bottomLeft.x + offset50, j, k)); // left
+        }*/
+
+        // upper container
+    size = { 6.0f, 14.0f, 8.0f };
+    offset = { 0, gridSize.y / 2 - 2.0f, (gridSize.z - size.z) / 2 };
+
+    bottomLeft = offset;
+    topRight   = size + offset;
+
+    Vec3f pipeSize = Vec3f(4.0f, 4.0f, 4.0f);
+    Vec3f pipeOffset = Vec3f(topRight.x - offset50, bottomLeft.y + offset100 + pCellSize, (gridSize.z - pipeSize.z) / 2);
+
+    for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
+        for (float k = bottomLeft.z + offset50; k < topRight.z; k += offset50) {
+            boundaryPos.push_back(Vec3f(i, bottomLeft.y + offset50, k)); // bottom
+            boundaryPos.push_back(Vec3f(i, topRight.y - offset50, k));   // top
+        }
+
+    for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
+        for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50) {
+            boundaryPos.push_back(Vec3f(i, j, bottomLeft.z + offset50)); // back
+            boundaryPos.push_back(Vec3f(i, j, topRight.z - offset50));   // front
+        }
+
+    for (float k = bottomLeft.z + offset100; k < topRight.z - offset50; k += offset50)
+        for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50) {
+            if(j <= pipeOffset.y || j >= pipeOffset.y + pipeSize.y
+                || k <= pipeOffset.z || k >= pipeOffset.z + pipeSize.z)
+                boundaryPos.push_back(Vec3f(topRight.x - offset50, j, k));   // right
+        }
+
+    bottomLeft = pipeOffset;
+    topRight = pipeSize + pipeOffset;
+
+    for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
+        for (float k = bottomLeft.z + offset50; k < topRight.z; k += offset50) {
+            boundaryPos.push_back(Vec3f(i, bottomLeft.y + offset50, k)); // bottom
+            boundaryPos.push_back(Vec3f(i, topRight.y - offset50, k));   // top
+        }
+
+    for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
+        for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50) {
+            boundaryPos.push_back(Vec3f(i, j, bottomLeft.z + offset50)); // back
+            boundaryPos.push_back(Vec3f(i, j, topRight.z - offset50));   // front
+        }
+
+    // sample fluid mass
+    std::vector<Vec3f> fluidPos = std::vector<Vec3f>();
+
+    RenderObject object{};
+    renderables.push_back(object);
+
+    Sampler::cubeVolume(fluidPos, pCellSize, offset + pCellSize, offset + size - pCellSize);
+
+    // finish initialization
+    sphSolver.prepareSolver(fluidPos, boundaryPos);
+}
+
+void VulkanEngine::crazyWaves() {
+    // init solver
+    Real spacing = 1.0f / 4;
+    sphSolver = IISPHsolver3D(spacing);
+
+    Real  pCellSize = 2 * spacing;
+    Real  sCellSize = spacing / 2;
+    Vec3f gridSize(25.0f, 30.0f, 14.0f);
+
+    sphSolver.setParticleHelper(pCellSize, gridSize);
+    sphSolver.setSurfaceHelper(sCellSize, gridSize);
+
+    // sample fluid mass
+    std::vector<Vec3f> fluidPos = std::vector<Vec3f>();
+
+    // sample boundaries
+    std::vector<Vec3f> boundaryPos = std::vector<Vec3f>();
+
+    // finish initialization
+    sphSolver.prepareSolver(fluidPos, boundaryPos);
 }

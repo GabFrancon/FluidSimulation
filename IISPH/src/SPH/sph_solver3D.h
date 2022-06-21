@@ -2,6 +2,7 @@
 
 #include "sph_kernel.h"
 #include "sph_grid.h"
+#include "sph_sampler.h"
 
 #include "../Surface/IsoSurface.h"
 
@@ -38,15 +39,7 @@ public:
 
     /*-------------------------------------------Main functions------------------------------------------------*/
 
-    void prepare();
-
-    void sampleFluidCube(Vec3f bottomLeft, Vec3f topRight);
-    void sampleFluidBall(Vec3f center, Real radius, Real precision = 0.5f);
-    void sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness = 1);
-    void sampleDistanceField(Vec3f bottomLeft, Vec3f topRight);
-    void sampleFluidMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
-    void sampleBoundaryMesh(std::vector<Vec3f> vertices, std::vector<Index> indices);
-
+    void prepareSolver(std::vector<Vec3f> fluidPos, std::vector<Vec3f> boundaryPos);
     void solveSimulation();
     void reconstructSurface();
 
@@ -56,19 +49,17 @@ public:
     inline void setParticleHelper(Real cellSize, Vec3f gridSize) { _pGridHelper = GridHelper(cellSize, gridSize); }
     inline void setSurfaceHelper (Real cellSize, Vec3f gridSize) { _sGridHelper = GridHelper(cellSize, gridSize); }
 
-    const inline Index  fluidCount() const { return _fluidCount; }
+    const inline Index  fluidCount()                 const { return _fluidCount; }
     const inline Vec3f& fluidPosition(const Index i) const { return _fPosition[i]; }
-    const inline Vec3f& fluidColor(const Index i) const { return _fColor[i]; }
+    const inline Vec3f& fluidColor(const Index i)    const { return _fColor[i]; }
 
-    const inline Index  boundaryCount() const { return _boundaryCount; }
+    const inline Index  boundaryCount()                 const { return _boundaryCount; }
     const inline Vec3f& boundaryPosition(const Index i) const { return _bPosition[i]; }
-    const inline Vec3f& boundaryColor(const Index i) const { return _bColor[i]; }
+    const inline Vec3f& boundaryColor(const Index i)    const { return _bColor[i]; }
 
-    const inline Real sizeX()    const { return _pGridHelper.sizeX(); }
-    const inline Real sizeY()    const { return _pGridHelper.sizeY(); }
-    const inline Real sizeZ()    const { return _pGridHelper.sizeZ(); }
-    const inline Real cellSize() const { return _pGridHelper.cellSize(); }
-    const inline Real particleSpacing() const { return _h; };
+    const inline Vec3f size()            const { return _pGridHelper.size(); }
+    const inline Real  cellSize()        const { return _pGridHelper.cellSize(); }
+    const inline Real  particleSpacing() const { return _h; };
 
     const inline Index verticesCount() const { return _isoSurface.m_nVertices; }
     const inline Index indicesCount()  const { return _isoSurface.m_nTriangles * 3; }

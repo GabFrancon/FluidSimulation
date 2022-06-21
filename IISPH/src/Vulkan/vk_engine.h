@@ -20,7 +20,7 @@ typedef std::chrono::high_resolution_clock Clock;
 static const uint32_t WIDTH  = 1600;
 static const uint32_t HEIGHT = 1200;
 
-static const int MAX_OBJECTS_RENDERED  = 150000;
+static const int MAX_OBJECTS_RENDERED  = 200000;
 static const int MAX_MATERIALS_CREATED = 20;
 static const int MAX_FRAMES_IN_FLIGHT  = 2;
 
@@ -160,13 +160,12 @@ private:
 
     // Scene Rendering
     void initScene();
-    void initSphSolver();
     void initParticles();
     void initSurface();
     void initRoom();
 
     void updateScene();
-    void updateSphSolver();
+    void solveSimulation();
     void updateParticles();
     void updateSurface();
 
@@ -177,7 +176,12 @@ private:
     // Exportation
     void saveSurfaceMesh();
     void saveFrame();
-    void takeScreenshot(const char* filename);
     std::string frameID(int frameCount);
     void showStatistics();
+
+    // Scenarii
+    void dropOnTheBeach();
+    void bunnyBath();
+    void glassOfFriendship();
+    void crazyWaves();
 };

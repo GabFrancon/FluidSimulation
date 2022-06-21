@@ -2,7 +2,19 @@
 
 /*--------------------------------------------Main functions--------------------------------------------------*/
 
-void IISPHsolver3D::prepare() {
+void IISPHsolver3D::prepareSolver(std::vector<Vec3f> fluidPos, std::vector<Vec3f> boundaryPos) {
+    // sample input fluid
+    _fPosition = fluidPos;
+
+    // sample input boundaries
+    _bPosition = boundaryPos;
+
+    // sample global boundaries
+    Sampler::cubeSurface(_bPosition, _pGridHelper.cellSize(), Vec3f(0.0f), _pGridHelper.size());
+
+    // sample distance field
+    Sampler::gridNodes(_sPosition, _sGridHelper.cellSize(), Vec3f(0.0f), _sGridHelper.size());
+
     // init counts
     _fluidCount    = _fPosition.size();
     _boundaryCount = _bPosition.size();
@@ -56,132 +68,6 @@ void IISPHsolver3D::prepare() {
         computeDensity(i);
 
     visualizeFluidDensity();
-}
-
-void IISPHsolver3D::sampleFluidCube(Vec3f bottomLeft, Vec3f topRight) {
-    Real offset25 = 0.25f * _pGridHelper.cellSize();
-    Real offset50 = 0.50f * _pGridHelper.cellSize();
-
-    for (float k = bottomLeft.z + offset25; k < topRight.z; k+= offset50)
-        for (float j = bottomLeft.y + offset25; j < topRight.y ; j+= offset50)
-            for (float i = bottomLeft.x + offset25; i < topRight.x; i+= offset50) {
-                _fPosition.push_back(Vec3f(i, j, k));
-            }
-}
-
-void IISPHsolver3D::sampleFluidBall(Vec3f center, Real radius, Real precision) {
-    for (Real r = 2*precision; r < radius; r += 2*precision) {
-        Real c = 1.61199195402f * r; // best length for the square
-        int nParticles = int(c / precision / 2);
-        Real delta = c / nParticles; // step
-        Vec3f origin = center - c / 2; // origin of the square (bottom left corner)
-        Vec3f dx{ delta, 0, 0 }, dy{ 0, delta, 0 }, dz{ 0, 0, delta };
-        Vec3f p{};
-
-        // z = 0
-        for (int i = 0; i <= nParticles; i++) {
-            for (int j = 0; j <= nParticles; j++) {
-                p = origin + i * dx + j * dy;
-                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
-            }
-        }
-
-        // in between
-        for (int z = 1; z < nParticles; z++) {
-            for (int i = 0; i <= nParticles; i++) {
-                // j = 0
-                p = origin + i * dx + z * dz;
-                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
-
-                // j = precision
-                p = origin + i * dx + nParticles * dy + z * dz;
-                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
-            }
-
-            for (int j = 0; j <= nParticles; j++) {
-                // i = 0
-                p = origin + j * dy + z * dz;
-                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
-
-                // i = precision
-                p = origin + nParticles * dx + j * dy + z * dz;
-                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
-            }
-        }
-
-        // z = precision
-        for (int i = 0; i <= nParticles; i++) {
-            for (int j = 0; j <= nParticles; j++) {
-                p = origin + i * dx + j * dy + nParticles * dz;
-                _fPosition.push_back(center + (p - center) * r / p.distanceTo(center));
-            }
-        }
-    }
-}
-
-void IISPHsolver3D::sampleBoundaryBox(Vec3f bottomLeft, Vec3f topRight, int thickness) {
-    Real offset25  = 0.25f * _pGridHelper.cellSize();
-    Real offset50  = 0.50f * _pGridHelper.cellSize();
-    Real offset75  = 0.75f * _pGridHelper.cellSize();
-    Real offset100 = 1.00f * _pGridHelper.cellSize();
-    
-    switch (thickness) {
-    case 1:
-        for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
-            for (float k = bottomLeft.z + offset50; k < topRight.z; k += offset50) {
-                _bPosition.push_back(Vec3f(i, bottomLeft.y + offset50, k)); // bottom
-                _bPosition.push_back(Vec3f(i, topRight.y - offset50, k)); // top
-            }
-
-        for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
-            for (float j = bottomLeft.y + offset50 + offset50; j < topRight.y - offset50; j += offset50) {
-                _bPosition.push_back(Vec3f(i, j, bottomLeft.z + offset50)); // back
-                _bPosition.push_back(Vec3f(i, j, topRight.z - offset50)); // front
-            }
-
-        for (float j = bottomLeft.y + offset50 + offset50; j < topRight.y - offset50; j += offset50)
-            for (float k = bottomLeft.z + offset50 + offset50; k < topRight.z - offset50; k += offset50) {
-                _bPosition.push_back(Vec3f(bottomLeft.x + offset50, j, k)); // left
-                _bPosition.push_back(Vec3f(topRight.x - offset50, j, k)); // right
-            }
-        break;
-        
-    case 2:
-        for (float i = bottomLeft.x + offset25; i < topRight.x; i += offset50)
-            for (float k = bottomLeft.z + offset25; k < topRight.z; k += offset50) {
-                _bPosition.push_back(Vec3f(i, bottomLeft.y + offset25, k)); // bottom
-                _bPosition.push_back(Vec3f(i, bottomLeft.y + offset75, k)); // bottom
-                _bPosition.push_back(Vec3f(i, topRight.y - offset25, k)); // top
-                _bPosition.push_back(Vec3f(i, topRight.y - offset75, k)); // top
-            }
-
-        for (float i = bottomLeft.x + offset25; i < topRight.x; i += offset50)
-            for (float j = bottomLeft.y + offset25 + offset100; j < topRight.y - offset100; j += offset50) {
-                _bPosition.push_back(Vec3f(i, j, bottomLeft.z + offset25)); // back
-                _bPosition.push_back(Vec3f(i, j, bottomLeft.z + offset75)); // back
-                _bPosition.push_back(Vec3f(i, j, topRight.z - offset25)); // front
-                _bPosition.push_back(Vec3f(i, j, topRight.z - offset75)); // front
-            }
-
-        for (float j = bottomLeft.y + offset25 + offset100; j < topRight.y - offset100; j += offset50)
-            for (float k = bottomLeft.z + offset25 + offset100; k < topRight.z - offset100; k += offset50) {
-                _bPosition.push_back(Vec3f(bottomLeft.x + offset25, j, k)); // left
-                _bPosition.push_back(Vec3f(bottomLeft.x + offset75, j, k)); // left
-                _bPosition.push_back(Vec3f(topRight.x - offset25, j, k)); // right
-                _bPosition.push_back(Vec3f(topRight.x - offset75, j, k)); // right
-            }
-        break;
-    }
-}
-
-void IISPHsolver3D::sampleDistanceField(Vec3f bottomLeft, Vec3f topRight) {
-    Real offset100 = _sGridHelper.cellSize();
-
-    for (float k = bottomLeft.z; k <= topRight.z; k += offset100)
-        for (float j = bottomLeft.y; j <= topRight.y; j += offset100)
-            for (float i = bottomLeft.x; i <= topRight.x; i += offset100) {
-                _sPosition.push_back(Vec3f(i, j, k));
-            }
 }
 
 void IISPHsolver3D::solveSimulation() {
@@ -736,14 +622,4 @@ std::vector<Vec3f> mesh_to_set_of_points(std::vector<Vec3f> points, std::vector<
     }
 
     return r_points;
-}
-
-void IISPHsolver3D::sampleFluidMesh(std::vector<Vec3f> vertices, std::vector<Index> indices) {
-    for (int i = 0; i < vertices.size(); i++)
-        _fPosition.push_back(vertices[i]);
-}
-
-void IISPHsolver3D::sampleBoundaryMesh(std::vector<Vec3f> vertices, std::vector<Index> indices) {   
-    for (int i = 0; i < vertices.size(); i+=15)
-        _bPosition.push_back(vertices[i]);
 }

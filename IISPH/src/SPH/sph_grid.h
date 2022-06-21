@@ -11,20 +11,22 @@ public:
 
     GridHelper(float cellSize, Vec3f dimensions) {
         _cellSize = cellSize;
+        _gridSize = dimensions;
         _gridRes = cellPos(dimensions);
     }
 
     const inline int   cellCount() const { return _gridRes.x * _gridRes.y * _gridRes.z; }
     const inline float cellSize() const { return _cellSize; }
 
-    const inline int resX() const { return _gridRes.x; }
-    const inline int resY() const { return _gridRes.y; }
-    const inline int resZ() const { return _gridRes.z; }
+    const inline int  resX() const { return _gridRes.x; }
+    const inline int  resY() const { return _gridRes.y; }
+    const inline int  resZ() const { return _gridRes.z; }
+    const inline Vec3i res() const { return _gridRes; }
 
-    const inline int sizeX() const { return _gridRes.x * _cellSize; }
-    const inline int sizeY() const { return _gridRes.y * _cellSize; }
-    const inline int sizeZ() const { return _gridRes.z * _cellSize; }
-
+    const inline Real sizeX() const { return _gridSize.x; }
+    const inline Real sizeY() const { return _gridSize.y; }
+    const inline Real sizeZ() const { return _gridSize.z; }
+    const inline Vec3f size() const { return _gridSize; }
 
     void getNeighborCells(std::vector<Index>& neighbors, Vec3f particle, const float radius) {
         if (!isInsideGrid(particle)) {
@@ -82,5 +84,6 @@ public:
 
 private:
     Vec3i _gridRes;
+    Vec3f _gridSize;
     Real  _cellSize = 1.0f;
 };
