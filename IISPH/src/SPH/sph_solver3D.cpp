@@ -10,7 +10,7 @@ void IISPHsolver3D::prepareSolver(std::vector<Vec3f> fluidPos, std::vector<Vec3f
     _bPosition = boundaryPos;
 
     // sample global boundaries
-    Sampler::cubeSurface(_bPosition, _pGridHelper.cellSize(), Vec3f(0.0f), _pGridHelper.size());
+    Sampler::cubeSurface(_bPosition, _pGridHelper.cellSize(), Vec3f(0.0f), _pGridHelper.size(), 2);
 
     // sample distance field
     Sampler::gridNodes(_sPosition, _sGridHelper.cellSize(), Vec3f(0.0f), _sGridHelper.size());

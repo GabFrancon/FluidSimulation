@@ -8,13 +8,11 @@
 class Sampler {
 public:
 
-	static void cubeSurface(std::vector<Vec3f>& positions, Real cellSize, Vec3f bottomLeft, Vec3f topRight) {
+	static void cubeSurface(std::vector<Vec3f>& positions, Real cellSize, Vec3f bottomLeft, Vec3f topRight, int thickness = 1) {
         Real offset25  = 0.25f * cellSize;
         Real offset50  = 0.50f * cellSize;
         Real offset75  = 0.75f * cellSize;
         Real offset100 = 1.00f * cellSize;
-        int thickness  = 1;
-
 
         switch (thickness) {
         case 1:

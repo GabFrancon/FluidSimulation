@@ -103,15 +103,15 @@ private:
     float currentClockTime  = 0.0f;
 
     // Flags
-    bool framebufferResized = false;
-    bool appTimerStopped    = true;
-
+    bool windowResized   = false;
+    bool appTimerStopped = true;
+    bool navigationOn    = true;
     bool simulationOn    = true;
     bool wireframeViewOn = false;
     bool particleViewOn  = true;
-
-    bool recordAnim  = false;
-    bool exportAnim  = false;
+    bool showBoundaries  = false;
+    bool recordAnim      = false;
+    bool exportAnim      = false;
 
     // statistics
     double sphTimeComputation      = 0.0f;

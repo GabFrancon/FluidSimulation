@@ -45,7 +45,7 @@ public:
         int kmax = std::min(maxCell.z, _gridRes.z - 1);
 
         int count = 0;
-        int size = (kmax - kmin + 1) * (jmax - jmin + 1) * (imax - imin + 1);
+        int size = std::min((kmax - kmin + 1) * (jmax - jmin + 1) * (imax - imin + 1), (int)1e9);
         neighbors.resize(size);
 
         for (int k = kmin; k <= kmax; ++k)
