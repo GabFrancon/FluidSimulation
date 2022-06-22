@@ -39,9 +39,12 @@ IISPH/x64/*
 *.vcxproj.filters
 *.vcxproj.user
 
-# Others
+# raw data
 results/screenshots/*
-results/shots/*
 results/meshes/*
 results/meshes_break/*
 results/meshes_drop/*
+
+# mp4 videos
+*particle.mp4
+*surface.mp4
