@@ -173,8 +173,8 @@ void VulkanEngine::initInterface() {
     createWindow();
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     glfwSetKeyCallback(window, keyboardCallback);
-    glfwSetCursorPosCallback(window, mouseCallback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    //glfwSetCursorPosCallback(window, mouseCallback);
+    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 void VulkanEngine::createWindow() {
@@ -700,15 +700,15 @@ Material* VulkanEngine::getMaterial(const std::string& name) {
 void VulkanEngine::initScene() {
     // init scene parameters
     sceneInfo = SceneInfo();
-    sceneInfo.lightPosition = glm::vec3(40.0f, 40.0f, 40.0f);
+    sceneInfo.lightPosition = glm::vec3(20.0f, 30.0f, 40.0f);
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(35, 22, 28), glm::vec3(0.0f, 1.0f, 0.0f), -25.0f, -135.0f); 
+    camera = Camera(glm::vec3(28, 25, 28), glm::vec3(0.0f, 1.0f, 0.0f), -30.0f, -135.0f); 
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
-    // init SPH solver with one of the predefined scenario
+    // init SPH solver with one of the predefined scenarii
     dropOnTheBeach();
 
     // init render objects
@@ -819,7 +819,7 @@ void VulkanEngine::updateScene() {
     lastClockTime = currentClockTime;
 
     // update camera
-    camera.processKeyboardInput(window, dt);
+    //camera.processKeyboardInput(window, dt);
 
     if (!appTimerStopped) {
         appTimer += dt;
@@ -835,7 +835,7 @@ void VulkanEngine::updateScene() {
                 updateSurface();
 
             // check the stop condition
-            if (frameCount >= 1500)
+            if (frameCount >= 1200)
                 glfwSetWindowShouldClose(window, true);
         }
         else {
@@ -843,7 +843,7 @@ void VulkanEngine::updateScene() {
             updateSurface();
 
             // check the restart condition
-            if (frameCount >= 1500)
+            if (frameCount >= 1200)
                 frameCount = 1;
         }
         frameCount++;
