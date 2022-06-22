@@ -49,6 +49,9 @@ public:
     inline void setParticleHelper(Real cellSize, Vec3f gridSize) { _pGridHelper = GridHelper(cellSize, gridSize); }
     inline void setSurfaceHelper (Real cellSize, Vec3f gridSize) { _sGridHelper = GridHelper(cellSize, gridSize); }
 
+    const inline GridHelper getParticleHelper() { return _pGridHelper; }
+    const inline GridHelper getSurfaceHelper()  { return _sGridHelper; }
+
     const inline Index  fluidCount()                 const { return _fluidCount; }
     const inline Vec3f& fluidPosition(const Index i) const { return _fPosition[i]; }
     const inline Vec3f& fluidColor(const Index i)    const { return _fColor[i]; }

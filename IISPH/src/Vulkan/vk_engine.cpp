@@ -715,7 +715,7 @@ void VulkanEngine::initScene() {
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
     // init SPH solver with one of the predefined scenario
-    glassOfFriendship();
+    bunnyBath();
 
     // init render objects
     initParticles();
@@ -900,7 +900,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    //drawSingleObject(commandBuffer, 0); // bunny or glass
+    drawSingleObject(commandBuffer, 0); // solid objet
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 
@@ -1078,7 +1078,7 @@ void VulkanEngine::bunnyBath() {
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(25.0f, 30.0f, 14.0f);
+    Vec3f gridSize(26.0f, 30.0f, 14.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -1087,7 +1087,7 @@ void VulkanEngine::bunnyBath() {
     std::vector<Vec3f> boundaryPos = std::vector<Vec3f>();
 
     // fluid mass
-    Vec3f fluidSize(5.0f, 12.0f, gridSize.z - 2 * pCellSize);
+    Vec3f fluidSize(7.0f, 12.0f, gridSize.z - 2 * pCellSize);
     Sampler::cubeVolume(fluidPos, pCellSize, Vec3f(pCellSize), fluidSize + pCellSize);
 
     // bunny
@@ -1096,19 +1096,22 @@ void VulkanEngine::bunnyBath() {
 
     RenderObject bunny{};
     bunny.mesh = getMesh("bunny");
-    bunny.material = getMaterial("bas_col_fill_back");
+    bunny.material = getMaterial("bas_bunny_fill_back");
     bunny.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
     bunny.albedoColor = color;
     renderables.push_back(bunny);
 
-    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), size);
+    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), 0.8f * size);
 
-    for (const Vertex& v : bunny.mesh->vertices) {
+    std::vector<Vec3f> vertices = std::vector<Vec3f>();
+    for (Vertex& v : bunny.mesh->vertices) {
         p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
-        boundaryPos.push_back(Vec3f(p.x, p.y, p.z));
+        vertices.push_back(Vec3f(p.x, p.y, p.z));
     }
 
+    Sampler::meshSurface(boundaryPos, vertices, sphSolver.getParticleHelper());
     bCount = boundaryPos.size();
+
     // finish initialization
     sphSolver.prepareSolver(fluidPos, boundaryPos);
 }
