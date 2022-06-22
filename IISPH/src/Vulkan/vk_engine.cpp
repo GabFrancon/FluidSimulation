@@ -714,8 +714,13 @@ void VulkanEngine::initScene() {
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
+<<<<<<< HEAD
     // init SPH solver with one of the predefined scenario
     bunnyBath();
+=======
+    // init SPH solver with one of the predefined scenarii
+    glassOfFriendship();
+>>>>>>> 6e1e2af0878c4e9e1c543a27210d6ab979140b10
 
     // init render objects
     initParticles();
@@ -900,7 +905,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    drawSingleObject(commandBuffer, 0); // solid objet
+    //drawSingleObject(commandBuffer, 0); // solid objet
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 

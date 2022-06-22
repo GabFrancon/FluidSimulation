@@ -4,16 +4,18 @@ Implicit Incompressible SPH (Smoothed Particle Hydrodynamics) model using the Vu
 <br>
 
 ## Results
-Particle simulation, surface reconstruction (Vulkan in-house engine), and rendering performed with Cycles (Blender's physic-based engine).
+For each scenario, you can see the particle simulation and surface reconstruction side by side, rendered with our basic Vulkan engine. We also present the simulation incorporated in a scene and rendered with Cycles (Blender's physic-based engine) for a nicer look.
 
+### Drop and Splash scenario
 <p float="center">
+  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/drop_and_splash.gif"/>
   <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/drop_on_the_beach.gif"/>
-  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/drop_ball.gif"/>
 </p>
 
+### Breaking dam scenario
 <p float="center">
-  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/new_breaking_dam_blender.gif"/>
-  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/new_breaking_dam.gif"/>
+  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/breaking_dam.gif"/>
+  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/bunny_bath.gif"/>
 </p>
 
 
