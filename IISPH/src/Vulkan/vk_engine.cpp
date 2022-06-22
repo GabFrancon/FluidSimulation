@@ -173,15 +173,10 @@ void VulkanEngine::initInterface() {
     createWindow();
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     glfwSetKeyCallback(window, keyboardCallback);
-<<<<<<< HEAD
-    //glfwSetCursorPosCallback(window, mouseCallback);
-    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-=======
     if (navigationOn) {
         glfwSetCursorPosCallback(window, mouseCallback);
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
->>>>>>> 7152462102803b3d74a8930babee254e12497a2d
 }
 
 void VulkanEngine::createWindow() {
@@ -719,13 +714,8 @@ void VulkanEngine::initScene() {
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
-<<<<<<< HEAD
     // init SPH solver with one of the predefined scenarii
-    dropOnTheBeach();
-=======
-    // init SPH solver with one of the predefined scenario
-    bunnyBath();
->>>>>>> 7152462102803b3d74a8930babee254e12497a2d
+    glassOfFriendship();
 
     // init render objects
     initParticles();
@@ -831,12 +821,8 @@ void VulkanEngine::updateScene() {
     lastClockTime = currentClockTime;
 
     // update camera
-<<<<<<< HEAD
-    //camera.processKeyboardInput(window, dt);
-=======
     if(navigationOn)
         camera.processKeyboardInput(window, dt);
->>>>>>> 7152462102803b3d74a8930babee254e12497a2d
 
     if (!appTimerStopped) {
         appTimer += dt;
@@ -852,11 +838,7 @@ void VulkanEngine::updateScene() {
                 updateSurface();
 
             // check the stop condition
-<<<<<<< HEAD
-            if (frameCount >= 1200)
-=======
             if (frameCount >= 2400)
->>>>>>> 7152462102803b3d74a8930babee254e12497a2d
                 glfwSetWindowShouldClose(window, true);
         }
         else {
@@ -918,7 +900,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    drawSingleObject(commandBuffer, 0); // solid objet
+    //drawSingleObject(commandBuffer, 0); // solid objet
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 
