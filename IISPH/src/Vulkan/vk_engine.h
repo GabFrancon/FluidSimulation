@@ -98,20 +98,21 @@ private:
     // Logic
     IISPHsolver3D sphSolver;
     unsigned int frameCount = 1;
+    unsigned int bCount     = 0;
     float appTimer          = 0.0f;
     float lastClockTime     = 0.0f;
     float currentClockTime  = 0.0f;
 
     // Flags
-    bool framebufferResized = false;
-    bool appTimerStopped    = true;
-
+    bool windowResized   = false;
+    bool appTimerStopped = true;
+    bool navigationOn    = true;
     bool simulationOn    = true;
     bool wireframeViewOn = false;
     bool particleViewOn  = true;
-
-    bool recordAnim  = false;
-    bool exportAnim  = false;
+    bool showBoundaries  = true;
+    bool recordAnim      = false;
+    bool exportAnim      = false;
 
     // statistics
     double sphTimeComputation      = 0.0f;

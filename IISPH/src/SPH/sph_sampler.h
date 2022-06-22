@@ -2,19 +2,17 @@
 
 #include "sph_types.h"
 #include "sph_grid.h"
-#include <vector>	
-
+#include <vector>
+#include <unordered_map>
 
 class Sampler {
 public:
 
-	static void cubeSurface(std::vector<Vec3f>& positions, Real cellSize, Vec3f bottomLeft, Vec3f topRight) {
+	static void cubeSurface(std::vector<Vec3f>& positions, Real cellSize, Vec3f bottomLeft, Vec3f topRight, int thickness = 1) {
         Real offset25  = 0.25f * cellSize;
         Real offset50  = 0.50f * cellSize;
         Real offset75  = 0.75f * cellSize;
         Real offset100 = 1.00f * cellSize;
-        int thickness  = 1;
-
 
         switch (thickness) {
         case 1:
@@ -111,6 +109,20 @@ public:
         }
     }
 
+    static void meshSurface(std::vector<Vec3f>& positions, std::vector<Vec3f> vertices, GridHelper grid) {
+        std::unordered_map<int, uint32_t> uniqueCells{};
+        Vec3f size = Vec3f(grid.cellSize());
+        Vec3f offset{};
 
+        for (Vec3f& p : vertices) {
+            int id = grid.cellID(p);
+
+            if (uniqueCells.count(id) == 0) {
+                uniqueCells[id] = static_cast<uint32_t>(positions.size());
+                offset = grid.cellSize() * (Vec3f) grid.cellPos(p);
+                cubeVolume(positions, grid.cellSize(), offset, offset + size);
+            }
+        }
+    }
 };
 
