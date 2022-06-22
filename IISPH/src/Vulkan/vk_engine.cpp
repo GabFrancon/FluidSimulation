@@ -173,15 +173,10 @@ void VulkanEngine::initInterface() {
     createWindow();
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     glfwSetKeyCallback(window, keyboardCallback);
-<<<<<<< HEAD
-    //glfwSetCursorPosCallback(window, mouseCallback);
-    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-=======
     if (navigationOn) {
         glfwSetCursorPosCallback(window, mouseCallback);
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
->>>>>>> 7152462102803b3d74a8930babee254e12497a2d
 }
 
 void VulkanEngine::createWindow() {
@@ -632,7 +627,7 @@ void VulkanEngine::loadMeshes() {
     meshes["geodesic3"] = geodesic;
 }
 
-void VulkanEngine::createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline) {    
+void VulkanEngine::createMaterial(const std::string name, Texture* texture, VulkanPipeline pipeline) {
     Material material{ &context, pipeline, texture };
     material.updatePipeline({ globalSetLayout, objectsSetLayout, textureSetLayout }, swapChain.extent, renderPass);
     material.updateTexture(textureSetLayout, descriptorPool);
@@ -715,17 +710,12 @@ void VulkanEngine::initScene() {
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(28, 25, 28), glm::vec3(0.0f, 1.0f, 0.0f), -30.0f, -135.0f); 
+    camera = Camera(glm::vec3(28, 25, 28), glm::vec3(0.0f, 1.0f, 0.0f), -30.0f, -135.0f);
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
-<<<<<<< HEAD
-    // init SPH solver with one of the predefined scenarii
-    dropOnTheBeach();
-=======
     // init SPH solver with one of the predefined scenario
     bunnyBath();
->>>>>>> 7152462102803b3d74a8930babee254e12497a2d
 
     // init render objects
     initParticles();
@@ -831,12 +821,8 @@ void VulkanEngine::updateScene() {
     lastClockTime = currentClockTime;
 
     // update camera
-<<<<<<< HEAD
-    //camera.processKeyboardInput(window, dt);
-=======
     if(navigationOn)
         camera.processKeyboardInput(window, dt);
->>>>>>> 7152462102803b3d74a8930babee254e12497a2d
 
     if (!appTimerStopped) {
         appTimer += dt;
@@ -844,7 +830,7 @@ void VulkanEngine::updateScene() {
         if (simulationOn) {
             // solve SPH equations
             solveSimulation();
-           
+
             // update render objects
             if(particleViewOn)
                 updateParticles();
@@ -852,11 +838,7 @@ void VulkanEngine::updateScene() {
                 updateSurface();
 
             // check the stop condition
-<<<<<<< HEAD
-            if (frameCount >= 1200)
-=======
             if (frameCount >= 2400)
->>>>>>> 7152462102803b3d74a8930babee254e12497a2d
                 glfwSetWindowShouldClose(window, true);
         }
         else {
@@ -971,7 +953,7 @@ void VulkanEngine::drawInstanced(VkCommandBuffer commandBuffer, int instanceCoun
     // bind frame descriptors
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 0, 1, &descriptors[currentFrame].globalDescriptorSet, 0, nullptr);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 1, 1, &descriptors[currentFrame].objectsDescriptorSet, 0, nullptr);
-    
+
     // bind texture descriptor
     if(object.material->texture != VK_NULL_HANDLE)
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline.pipelineLayout, 2, 1, &object.material->textureDescriptor, 0, nullptr);
@@ -1018,7 +1000,7 @@ std::string VulkanEngine::frameID(int frameCount) {
 
 void VulkanEngine::showStatistics() {
     std::cout << "\n"
-        << "time for SPH simulation : " << std::setw(6) << sphTimeComputation << " ms\n" 
+        << "time for SPH simulation : " << std::setw(6) << sphTimeComputation << " ms\n"
         << "time for surface reconstruction : " << std::setw(6) << surfaceTimeComputation << " ms\n"
         << std::endl;
 }
@@ -1122,12 +1104,14 @@ void VulkanEngine::bunnyBath() {
     glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), 0.8f * size);
 
     std::vector<Vec3f> vertices = std::vector<Vec3f>();
+    std::vector<uint32_t> indices = bunny.mesh->indices;
+
     for (Vertex& v : bunny.mesh->vertices) {
         p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
         vertices.push_back(Vec3f(p.x, p.y, p.z));
     }
 
-    Sampler::meshSurface(boundaryPos, vertices, sphSolver.getParticleHelper());
+    Sampler::meshSurface(boundaryPos, vertices, indices, sphSolver.getParticleHelper());
     bCount = boundaryPos.size();
 
     // finish initialization

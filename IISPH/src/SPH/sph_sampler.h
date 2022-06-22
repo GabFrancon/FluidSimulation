@@ -109,8 +109,8 @@ public:
         }
     }
 
-    static void meshSurface(std::vector<Vec3f>& positions, std::vector<Vec3f> vertices, GridHelper grid) {
-        std::unordered_map<int, uint32_t> uniqueCells{};
+    static void meshSurface(std::vector<Vec3f>& positions, std::vector<Vec3f> vertices, std::vector<uint32_t> indices, GridHelper grid) {
+        /*std::unordered_map<int, uint32_t> uniqueCells{};
         Vec3f size = Vec3f(grid.cellSize());
         Vec3f offset{};
 
@@ -122,7 +122,17 @@ public:
                 offset = grid.cellSize() * (Vec3f) grid.cellPos(p);
                 cubeVolume(positions, grid.cellSize(), offset, offset + size);
             }
+        }*/
+
+        for (int i = 0; i < indices.size(); i += 3) {
+            Vec3f p1 = positions[i];
+            Vec3f p2 = positions[i + 1];
+            Vec3f p3 = positions[i + 2];
+
+
         }
+
+
     }
 };
 
