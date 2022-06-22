@@ -234,6 +234,9 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
         else
             engine->updateSurface();
     }
+    else if (key == GLFW_KEY_B && action == GLFW_PRESS) {
+        engine->showBoundaries = !engine->showBoundaries;
+    }
     else if (key == GLFW_KEY_K && action == GLFW_PRESS) {
         engine->showStatistics();
     }
@@ -248,6 +251,7 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
             << "        O ---> on/off animation exportation\n"
             << "        V ---> on/off wireframe view\n"
             << "        P ---> on/off particle view\n"
+            << "        B ---> show/hide boundary particles\n"
             << "        K ---> show statistics\n"
             << "        H ---> get help for hot keys\n"
             << "        ESC -> close window\n"
@@ -740,22 +744,22 @@ void VulkanEngine::initParticles() {
         renderables.push_back(fluidParticle);
     }
 
-    // create boundary particles
-    if(showBoundaries)
-        for (int i = 0; i < sphSolver.boundaryCount(); i++) {
-            p = sphSolver.boundaryPosition(i) - sphSolver.cellSize();
-            c = sphSolver.boundaryColor(i);
+    // create inner boundary particles
+    for (int i = 0; i < bCount; i++) {
+        p = sphSolver.boundaryPosition(i) - sphSolver.cellSize();
+        c = sphSolver.boundaryColor(i);
 
-            position = glm::vec3(p.x, p.y, p.z);
-            color = glm::vec3(c.x, c.y, c.z);
+        position = glm::vec3(p.x, p.y, p.z);
+        color = glm::vec3(c.x, c.y, c.z);
 
-            RenderObject boundaryParticle{};
-            boundaryParticle.mesh = getMesh("sphere");
-            boundaryParticle.material = getMaterial("inst_col_fill_back");
-            boundaryParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-            boundaryParticle.albedoColor = color;
-            renderables.push_back(boundaryParticle);
-        }
+        RenderObject boundaryParticle{};
+        boundaryParticle.mesh = getMesh("sphere");
+        boundaryParticle.material = getMaterial("inst_col_fill_back");
+        boundaryParticle.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+        boundaryParticle.albedoColor = color;
+        renderables.push_back(boundaryParticle);
+    }
+
 }
 
 void VulkanEngine::initSurface() {
@@ -834,7 +838,7 @@ void VulkanEngine::updateScene() {
                 updateSurface();
 
             // check the stop condition
-            if (frameCount >= 1500)
+            if (frameCount >= 2400)
                 glfwSetWindowShouldClose(window, true);
         }
         else {
@@ -904,7 +908,7 @@ void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
         drawInstanced(commandBuffer, sphSolver.fluidCount(), 1); // fluid particles
 
         if(showBoundaries)
-            drawInstanced(commandBuffer, sphSolver.boundaryCount(), 1 + sphSolver.fluidCount()); // boundary particles
+            drawInstanced(commandBuffer, bCount, 1 + sphSolver.fluidCount()); // boundary particles
     }
     else
         drawSingleObject(commandBuffer, renderables.size() - 3); // surface
@@ -1019,9 +1023,10 @@ void VulkanEngine::dropOnTheBeach() {
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
 
-    // fluid basin
     std::vector<Vec3f> fluidPos = std::vector<Vec3f>();
+    std::vector<Vec3f> boundaryPos = std::vector<Vec3f>();
 
+    // fluid basin
     Vec3f fluidSize(gridSize.x - 2 * pCellSize, 5.0f, gridSize.z - 2 * pCellSize);
     Sampler::cubeVolume(fluidPos, pCellSize, Vec3f(pCellSize), fluidSize + pCellSize);
 
@@ -1061,8 +1066,6 @@ void VulkanEngine::dropOnTheBeach() {
         }
         size -= spacing;
     }
-
-    std::vector<Vec3f> boundaryPos = std::vector<Vec3f>();
 
     // finish initialization
     sphSolver.prepareSolver(fluidPos, boundaryPos);
@@ -1105,6 +1108,7 @@ void VulkanEngine::bunnyBath() {
         boundaryPos.push_back(Vec3f(p.x, p.y, p.z));
     }
 
+    bCount = boundaryPos.size();
     // finish initialization
     sphSolver.prepareSolver(fluidPos, boundaryPos);
 }
@@ -1119,7 +1123,7 @@ void VulkanEngine::glassOfFriendship() {
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(40.0f, 20.0f, 12.0f);
+    Vec3f gridSize(35.0f, 20.0f, 12.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -1132,23 +1136,17 @@ void VulkanEngine::glassOfFriendship() {
     Real  offset50 = 0.50f * pCellSize;
     Real  offset100 = 1.00f * pCellSize;
 
-    size       = { gridSize.x / 2, gridSize.y - 12.0f, 3.0f };
+    size       = { gridSize.x / 2 - 3.0f, gridSize.y - 12.0f, gridSize.z };
     offset     = { 0, gridSize.y - size.y, (gridSize.z - size.z) / 2 };
     bottomLeft = offset;
     topRight   = size + offset;
 
-    Vec3f pipeSize = Vec3f(2 * pCellSize, 6.0f, size.z);
-    Vec3f pipeOffset = Vec3f(topRight.x - offset50, bottomLeft.y, (gridSize.z - pipeSize.z) / 2);
+    Vec3f pipeSize = Vec3f(2 * pCellSize, size.y, 3.0f);
+    Vec3f pipeOffset = Vec3f(topRight.x - offset100, bottomLeft.y, (gridSize.z - pipeSize.z) / 2);
 
     for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
         for (float k = bottomLeft.z + offset50; k < topRight.z; k += offset50) {
             boundaryPos.push_back(Vec3f(i, bottomLeft.y + offset50, k)); // bottom
-        }
-
-    for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
-        for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50) {
-            boundaryPos.push_back(Vec3f(i, j, bottomLeft.z + offset50)); // back
-            boundaryPos.push_back(Vec3f(i, j, topRight.z - offset50));   // front
         }
 
     for (float k = bottomLeft.z + offset100; k < topRight.z - offset50; k += offset50)
@@ -1158,29 +1156,29 @@ void VulkanEngine::glassOfFriendship() {
                 boundaryPos.push_back(Vec3f(topRight.x - offset50, j, k));   // right
         }
 
+    // fluid reserve
+    Sampler::cubeVolume(fluidPos, pCellSize, offset + Vec3f(1.5, 1.0, 1.5) * pCellSize, offset + Vec3f(size.x, size.y * 0.8f, size.z) - pCellSize);
+
     // water pipe
+    Vec3f pente = Vec3f(-pCellSize, pCellSize / 2, 0.0f);
     bottomLeft = pipeOffset;
     topRight = pipeSize + pipeOffset;
-    Vec3f pente = Vec3f(-pCellSize, pCellSize / 2, 0.0f);
 
     for (int count = 0; count < 16; count++) {
-        for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
-            for (float k = bottomLeft.z + offset50; k < topRight.z; k += offset50) {
-                boundaryPos.push_back(Vec3f(i, bottomLeft.y + offset50, k)); // bottom
-                boundaryPos.push_back(Vec3f(i, topRight.y - offset50, k));   // top
-            }
 
-        for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
+        for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50) {
             for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50) {
                 boundaryPos.push_back(Vec3f(i, j, bottomLeft.z + offset50)); // back
                 boundaryPos.push_back(Vec3f(i, j, topRight.z - offset50));   // front
             }
-        bottomLeft -= pente;
-        topRight -= pente;
-    }
+            for (float k = bottomLeft.z + offset50; k < topRight.z; k += offset50) {
+                boundaryPos.push_back(Vec3f(i, bottomLeft.y + offset50, k)); // bottom
+            }
+        }
 
-    // fluid reserve
-    Sampler::cubeVolume(fluidPos, pCellSize, offset + pCellSize, offset + size - pCellSize);
+        bottomLeft -= pente;
+        topRight -= {pente.x, 0.0f, pente.z };
+    }
 
     // lower container
     size = { gridSize.x - bottomLeft.x, gridSize.y, gridSize.z };
@@ -1197,29 +1195,26 @@ void VulkanEngine::glassOfFriendship() {
                 boundaryPos.push_back(Vec3f(bottomLeft.x + offset50, j, k)); // left
         }
 
-    // fluid basin
-    Sampler::cubeVolume(fluidPos, pCellSize, offset + 1.5f * pCellSize, offset + Vec3f(size.x, size.y / 3, size.z) - 1.5f * pCellSize);
-
     // end of pipe
     bottomLeft = pipeOffset;
-    topRight = pipeSize + pipeOffset;
-    pente = Vec3f(-pCellSize, pCellSize / 2, 0.0f);
+    topRight = Vec3f(pipeSize.x, 4.0f, pipeSize.z) + pipeOffset;
 
-    for (int count = 0; count < 3; count++) {
-        for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
-            for (float k = bottomLeft.z + offset50; k < topRight.z; k += offset50) {
-                boundaryPos.push_back(Vec3f(i, bottomLeft.y + offset50, k)); // bottom
-                boundaryPos.push_back(Vec3f(i, topRight.y - offset50, k));   // top
-            }
+    for (int count = 0; count < 2; count++) {
 
-        for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
+        for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50) {
             for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50) {
                 boundaryPos.push_back(Vec3f(i, j, bottomLeft.z + offset50)); // back
                 boundaryPos.push_back(Vec3f(i, j, topRight.z - offset50));   // front
             }
+            for (float k = bottomLeft.z + offset50; k < topRight.z; k += offset50) {
+                boundaryPos.push_back(Vec3f(i, bottomLeft.y + offset50, k)); // bottom
+            }
+        }
+
         bottomLeft -= pente;
-        topRight -= pente;
+        topRight   -= pente;
     }
+    bCount = boundaryPos.size();
 
     // finish initialization
     sphSolver.prepareSolver(fluidPos, boundaryPos);
