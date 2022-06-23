@@ -47,5 +47,5 @@ results/meshes_drop/*
 results/meshes_flow/*
 
 # mp4 videos
-#*particle.mp4
-#*surface.mp4
+*particle.mp4
+*surface.mp4
