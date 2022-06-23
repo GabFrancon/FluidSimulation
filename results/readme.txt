@@ -6,10 +6,11 @@
 
 
 
+- here are some parameters used in the predefined scenarii, as well as the corresponding statistics :
 
-///////////////////////
-///drop on the beach///
-///////////////////////
+/////////////////////
+///drop and splash///
+/////////////////////
  
 - fluid particles      =    75 000
 - boundary particles   =    40 000
@@ -23,16 +24,32 @@
 
 
 
-////////////////
-///bunny bath///
-////////////////
+//////////////////
+///breaking dam///
+//////////////////
  
 - fluid particles      =   ?
 - boundary particles   =   ?
 - distance field nodes = ? ?
 
 - spacing  = 0.25 m
-- timestep = 0.00833 s
+- timestep = 2 x 0.00833 s / frame (60 fps)
 
 - particle simulation time    = ? ms / frame
 - surface reconstruction time = ? ms / frame
+
+
+
+////////////////
+///fluid flow///
+////////////////
+ 
+- fluid particles      =    40 000
+- boundary particles   =    80 000
+- distance field nodes = 7 350 000
+
+- spacing  = 0.25 m
+- timestep = 2 x 0.00833 s / frame (60 fps)
+
+- particle simulation time    =  55 ms / frame
+- surface reconstruction time = 530 ms / frame

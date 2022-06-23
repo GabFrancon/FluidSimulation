@@ -107,7 +107,7 @@ private:
     // Flags
     bool windowResized   = false;
     bool appTimerStopped = true;
-    bool navigationOn    = true;
+    bool navigationOn    = false;
     bool simulationOn    = true;
     bool wireframeViewOn = false;
     bool particleViewOn  = true;

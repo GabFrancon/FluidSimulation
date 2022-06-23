@@ -715,7 +715,7 @@ void VulkanEngine::initScene() {
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(28, 25, 28), glm::vec3(0.0f, 1.0f, 0.0f), -30.0f, -135.0f);
+    camera = Camera(glm::vec3(41, 23, 21), glm::vec3(0.0f, 1.0f, 0.0f), -36.0f, -135.0f);
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
@@ -843,7 +843,7 @@ void VulkanEngine::updateScene() {
                 updateSurface();
 
             // check the stop condition
-            if (frameCount >= 2400)
+            if (frameCount >= 1802)
                 glfwSetWindowShouldClose(window, true);
         }
         else {
@@ -905,7 +905,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    drawSingleObject(commandBuffer, 0); // solid objet
+    //drawSingleObject(commandBuffer, 0); // solid objet
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 
@@ -1130,7 +1130,7 @@ void VulkanEngine::glassOfFriendship() {
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(35.0f, 26.0f, 15.0f);
+    Vec3f gridSize(35.0f, 27.0f, 15.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -1143,12 +1143,12 @@ void VulkanEngine::glassOfFriendship() {
     Real  offset50 = 0.50f * pCellSize;
     Real  offset100 = 1.00f * pCellSize;
 
-    size       = { gridSize.x / 2 - 5.0f, std::round(gridSize.y / 3.5f), gridSize.z };
-    offset     = { 0, gridSize.y - size.y, (gridSize.z - size.z) / 2 };
+    size       = { gridSize.x / 2 - 5.0f, std::round(gridSize.y / 3.3f), gridSize.z };
+    offset     = { 0, gridSize.y - size.y - 2.0f, (gridSize.z - size.z) / 2 };
     bottomLeft = offset;
     topRight   = size + offset;
 
-    Vec3f pipeSize = Vec3f(2 * pCellSize, 10.0f, 3.0f);
+    Vec3f pipeSize = Vec3f(2 * pCellSize, 8.0f, 3.0f);
     Vec3f pipeOffset = Vec3f(topRight.x - offset100, bottomLeft.y - pipeSize.y / 4, (gridSize.z - pipeSize.z) / 2);
     Vec3f potentialPoint{};
 
@@ -1167,14 +1167,14 @@ void VulkanEngine::glassOfFriendship() {
         }
 
     // fluid reserve
-    Sampler::cubeVolume(fluidPos, pCellSize, offset + pCellSize, offset + Vec3f(size.x, size.y * 0.8f, size.z) - pCellSize);
+    Sampler::cubeVolume(fluidPos, pCellSize, offset + pCellSize, offset + Vec3f(size.x, size.y * 0.6f, size.z) - pCellSize);
 
     // pipe
     Vec3f pente = Vec3f(-spacing, spacing / 2, 0.0f);
     bottomLeft = pipeOffset;
     topRight = pipeSize + pipeOffset;
 
-    for (int count = 0; count < 25; count++) {
+    for (int count = 0; count < 38; count++) {
         Sampler::cylinderSurface(boundaryPos, spacing, (bottomLeft + topRight) / 2, pipeSize.y / 4, spacing, false);
         bottomLeft -= pente;
         topRight -= pente;
@@ -1193,7 +1193,7 @@ void VulkanEngine::glassOfFriendship() {
         for (float k = bottomLeft.z + offset100; k < topRight.z - offset50; k += offset50) {
             potentialPoint = { bottomLeft.x + offset50, j, k };
 
-            if (potentialPoint.distanceSquareTo(pipeOffset) > square(pipeSize.y / 4))
+            if (potentialPoint.distanceSquareTo(pipeOffset) > square(pipeSize.y / 4) + pCellSize)
                 safeWall.push_back(potentialPoint); // left
         }
 
@@ -1205,11 +1205,10 @@ void VulkanEngine::glassOfFriendship() {
 
     // glass
     offset = { (bottomLeft.x + gridSize.x) / 2 + pCellSize, pCellSize, gridSize.z / 2};
-    Real maxRadius = gridSize.z / 2 - pCellSize;
+    Real maxRadius = gridSize.z / 2 - 3 * pCellSize;
     Real minRadius = maxRadius * 0.3f;
 
-    Sampler::glassSurface(boundaryPos, spacing, offset, minRadius, maxRadius, pipeOffset.y - pipeSize.y / 4 - 3 * pCellSize);
-
+    bCount = Sampler::glassSurface(boundaryPos, spacing, offset, minRadius, maxRadius, pipeOffset.y - pipeSize.y / 4 - 3 * pCellSize);
     glm::vec3 position(offset.x - pCellSize, offset.y + 0.95f * maxRadius - pCellSize, offset.z - pCellSize), color(0.8f, 0.7f, 0.2f), glassSize(0.95f * maxRadius), rotationAxis(0.0f, 1.0f, 0.0f), p{};
     float angle(0.0f);
 
@@ -1220,7 +1219,6 @@ void VulkanEngine::glassOfFriendship() {
     glass.albedoColor = color;
     renderables.push_back(glass);
 
-    bCount = boundaryPos.size();
     boundaryPos.insert(boundaryPos.end(), safeWall.begin(), safeWall.end());
 
     // finish initialization
