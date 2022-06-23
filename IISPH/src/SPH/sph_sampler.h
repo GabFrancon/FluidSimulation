@@ -121,7 +121,7 @@ public:
         Vec3f newPoint{bottomCenter};
         Real r{minRadius}, h{ spacing / 2 }, x{}, alpha{};
         Index n{};
-        Real bendPoint = 0.65 * height;
+        Real bendPoint = 0.25 * height;
         positions.push_back(newPoint);
 
         while (r > 1.5f * spacing) {
@@ -146,7 +146,7 @@ public:
             if(offset < bendPoint )
                 r = minRadius + (maxRadius - minRadius) * (1 - exp(-5 * offset / bendPoint) );
             else
-                r = maxRadius + 0.1f * (1 - exp(5 * (offset - bendPoint) / bendPoint ) );
+                r = maxRadius + (1 - exp(0.25 * (offset - bendPoint) / bendPoint ) );
 
             if (r < spacing)
                 return;

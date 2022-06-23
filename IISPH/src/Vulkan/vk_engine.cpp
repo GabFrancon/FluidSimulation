@@ -588,6 +588,7 @@ void VulkanEngine::initAssets() {
     getMesh("sphere")->upload(commandPool);
     getMesh("cube")->upload(commandPool);
     getMesh("bunny")->upload(commandPool);
+    getMesh("glass")->upload(commandPool);
 }
 
 void VulkanEngine::loadTextures() {
@@ -613,6 +614,10 @@ void VulkanEngine::loadMeshes() {
     bunny.loadFromObj(BUNNY_MODEL_PATH.c_str(), false, true);
     meshes["bunny"] = bunny;
 
+    Mesh glass{ &context };
+    glass.loadFromObj(GLASS_MODEL_PATH.c_str(), false, false);
+    meshes["glass"] = glass;
+
     Mesh geodesic{ &context };
     geodesic.genSphere(0);
     meshes["geodesic0"] = geodesic;
@@ -637,11 +642,11 @@ void VulkanEngine::createMaterial(const std::string name, Texture* texture, Vulk
 void VulkanEngine::switchViewMode() {
 
     if (wireframeViewOn) {
-        renderables[0].material = getMaterial("bas_bunny_line_back"); // bunny or glass
+        renderables[0].material = getMaterial("bas_col_line_back"); // bunny or glass
         renderables[renderables.size() - 3].material = getMaterial("bas_col_line_back"); // surface
     }
     else {
-        renderables[0].material = getMaterial("bas_bunny_fill_back"); // bunny or glass
+        renderables[0].material = getMaterial("bas_col_fill_back"); // bunny or glass
         renderables[renderables.size() - 3].material = getMaterial("bas_col_fill_back"); // surface
     }
 }
@@ -900,7 +905,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    //drawSingleObject(commandBuffer, 0); // solid objet
+    drawSingleObject(commandBuffer, 0); // solid objet
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 
@@ -1119,9 +1124,6 @@ void VulkanEngine::bunnyBath() {
 }
 
 void VulkanEngine::glassOfFriendship() {
-    RenderObject object{};
-    renderables.push_back(object);
-
     // init solver
     Real spacing = 1.0f / 4;
     sphSolver = IISPHsolver3D(spacing);
@@ -1207,6 +1209,16 @@ void VulkanEngine::glassOfFriendship() {
     Real minRadius = maxRadius * 0.3f;
 
     Sampler::glassSurface(boundaryPos, spacing, offset, minRadius, maxRadius, pipeOffset.y - pipeSize.y / 4 - 3 * pCellSize);
+
+    glm::vec3 position(offset.x - pCellSize, offset.y + 0.95f * maxRadius - pCellSize, offset.z - pCellSize), color(0.8f, 0.7f, 0.2f), glassSize(0.95f * maxRadius), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    float angle(0.0f);
+
+    RenderObject glass{};
+    glass.mesh = getMesh("glass");
+    glass.material = getMaterial("bas_col_fill_back");
+    glass.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), glassSize);
+    glass.albedoColor = color;
+    renderables.push_back(glass);
 
     bCount = boundaryPos.size();
     boundaryPos.insert(boundaryPos.end(), safeWall.begin(), safeWall.end());
