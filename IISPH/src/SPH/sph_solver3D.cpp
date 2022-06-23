@@ -451,8 +451,9 @@ void IISPHsolver3D::updatePosition(int i) {
 
     if (_pGridHelper.isInsideGrid(_fPosition[i] + _dt * _fVelocity[i]))
         _fPosition[i] += _dt * _fVelocity[i];
-    else
+    else {
         debugCrash(i);
+    }
 }
 
 

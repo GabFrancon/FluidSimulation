@@ -45,14 +45,14 @@ public:
         int kmax = std::min(maxCell.z, _gridRes.z - 1);
 
         int count = 0;
-        int size = std::min((kmax - kmin + 1) * (jmax - jmin + 1) * (imax - imin + 1), (int)1e8);
+        int size = (kmax - kmin + 1) * (jmax - jmin + 1) * (imax - imin + 1);
         neighbors.resize(size);
 
         for (int k = kmin; k <= kmax; ++k)
             for (int j = jmin; j <= jmax; ++j)
                 for (int i = imin; i <= imax; ++i) {
-                    neighbors[count] = cellID(i, j, k);
-                    count++;
+                        neighbors[count] = cellID(i, j, k);
+                        count++;
                 }
     }
 

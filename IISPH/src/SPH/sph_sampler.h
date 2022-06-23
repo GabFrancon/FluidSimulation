@@ -85,27 +85,85 @@ public:
                 }
     }
 
-    static void cylinderSurface(std::vector<Vec3f>& positions, Real spacing, Vec3f bottomBase, Real radius, Real height) {
+    static void cylinderSurface(std::vector<Vec3f>& positions, Real spacing, Vec3f bottomCenter, Real radius, Real height, bool vertical = true) {
         if (radius < spacing)
             return;
 
-        Real r = radius;
-        Real h = spacing;
-        Vec3f center = bottomBase;
+        Vec3f newPoint{};
 
-        Real x = 3 * square(h) * (1 - square(h) / (3 * r)) / (square(r) - square(h) / 4);
+        Real r     = radius;
+        Real h     = spacing / 2;
+        Real x     = 3 * square(h) * (1 - square(h) / (3 * r)) / (square(r) - square(h) / 4);
         Real alpha = acos(1 - x);
-        Index n = (Index)(2 * M_PI / alpha) - 1;
+        Index n    = (Index)(2 * M_PI / alpha) - 1;
+
         alpha = 2 * M_PI / (n + 1);
 
-        std::cout << "n : " << n << "\n" << " alpha : " << alpha << std::endl;
+        for (Real offset = 0; offset < height; offset += spacing) {
 
+            for (Index i = 0; i <= n; i++) {
+                if (vertical) {
+                    newPoint.x = r * cos(alpha * i) + bottomCenter.x;
+                    newPoint.y = offset             + bottomCenter.y;
+                    newPoint.z = r * sin(alpha * i) + bottomCenter.z;
+                } 
+                else {
+                    newPoint.x = offset             + bottomCenter.x;
+                    newPoint.y = r * sin(alpha * i) + bottomCenter.y;
+                    newPoint.z = r * cos(alpha * i) + bottomCenter.z;
+                }
+                positions.push_back(newPoint);
+            }
+        }
+    }
 
-        for (Real y = 0; y < height; y += h) {
-            center.y += y;
+    static void glassSurface(std::vector<Vec3f>& positions, Real spacing, Vec3f bottomCenter, Real minRadius, Real maxRadius, Real height) {
+        Vec3f newPoint{bottomCenter};
+        Real r{minRadius}, h{ spacing / 2 }, x{}, alpha{};
+        Index n{};
+        Real bendPoint = 0.65 * height;
+        positions.push_back(newPoint);
 
-            for (Index i = 0; i < n; i++)
-                positions.push_back(Vec3f(r * cos(alpha), 0.0f, r * sin(alpha)) + center);
+        while (r > 1.5f * spacing) {
+            r -= spacing;
+            x = 3 * square(h) * (1 - square(h) / (3 * r)) / (square(r) - square(h) / 4);
+            alpha = acos(1 - x);
+            n = (Index)(2 * M_PI / alpha) - 1;
+
+            alpha = 2 * M_PI / (n + 1);
+
+            for (Index i = 0; i <= n; i++) {
+                newPoint.x = r * cos(alpha * i) + bottomCenter.x;
+                newPoint.y = bottomCenter.y;
+                newPoint.z = r * sin(alpha * i) + bottomCenter.z;
+
+                positions.push_back(newPoint);
+            }
+        }
+
+        for (Real offset = 0; offset < height; offset += spacing * r / maxRadius) {
+
+            if(offset < bendPoint )
+                r = minRadius + (maxRadius - minRadius) * (1 - exp(-5 * offset / bendPoint) );
+            else
+                r = maxRadius + 0.1f * (1 - exp(5 * (offset - bendPoint) / bendPoint ) );
+
+            if (r < spacing)
+                return;
+
+            x     = 3 * square(h) * (1 - square(h) / (3 * r)) / (square(r) - square(h) / 4);
+            alpha = acos(1 - x);
+            n     = (Index)(2 * M_PI / alpha) - 1;
+
+            alpha = 2 * M_PI / (n + 1);
+
+            for (Index i = 0; i <= n; i++) {
+                newPoint.x = r * cos(alpha * i) + bottomCenter.x;
+                newPoint.y = offset + bottomCenter.y;
+                newPoint.z = r * sin(alpha * i) + bottomCenter.z;
+                
+                positions.push_back(newPoint);
+            }
         }
     }
 
