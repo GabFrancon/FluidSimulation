@@ -35,7 +35,6 @@ public:
 
     Camera(
         glm::vec3 _camPos,
-        glm::vec3 _worldUp,
         float _pitch = 0.0f,
         float _yaw   = -90.0f,
         float _fov   = glm::radians(45.0f), 
@@ -43,12 +42,13 @@ public:
         float _far   = 150.1f)
     {
         camPos  = _camPos;
-        worldUp = _worldUp;
         yaw     = _yaw;
         pitch   = _pitch;
         fov     = _fov;
         near    = _near;
         far     = _far;
+
+        worldUp = { 0.0f, 1.0f, 0.0f };
         updateCamVectors();
     }
 

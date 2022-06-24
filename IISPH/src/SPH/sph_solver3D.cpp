@@ -5,20 +5,19 @@
 void IISPHsolver3D::prepareSolver(std::vector<Vec3f> fluidPos, std::vector<Vec3f> boundaryPos) {
     // sample input fluid
     _fPosition = fluidPos;
+    _fluidCount = _fPosition.size();
 
     // sample input boundaries
     _bPosition = boundaryPos;
+    _inBoundaryCount = _bPosition.size();
 
     // sample global boundaries
     Sampler::cubeSurface(_bPosition, _pGridHelper.cellSize(), Vec3f(0.0f), _pGridHelper.size(), 1);
+    _boundaryCount = _bPosition.size();
 
     // sample distance field
     Sampler::gridNodes(_sPosition, _sGridHelper.cellSize(), Vec3f(0.0f), _sGridHelper.size());
-
-    // init counts
-    _fluidCount    = _fPosition.size();
-    _boundaryCount = _bPosition.size();
-    _surfaceCount  = _sPosition.size();
+    _surfaceCount = _sPosition.size();
 
     std::cout << "\n"
         << "number of fluid particles    : " << _fluidCount    << "\n"

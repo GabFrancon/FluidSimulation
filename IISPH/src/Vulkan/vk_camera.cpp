@@ -33,6 +33,7 @@ void Camera::processMouseMovement(float xoffset, float yoffset)
         pitch = -89.0f;
 
     updateCamVectors();
+    //std::cout << camPos.x << ", " << camPos.y << ", " << camPos.z << ", " << pitch << ", " << yaw << std::endl;
 }
 
 void Camera::updateCamVectors()

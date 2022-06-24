@@ -715,12 +715,12 @@ void VulkanEngine::initScene() {
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(41, 23, 21), glm::vec3(0.0f, 1.0f, 0.0f), -36.0f, -135.0f);
+    camera = Camera(glm::vec3(16, 23, 12), -65.0f, -59.0f);
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
     // init SPH solver with one of the predefined scenario
-    glassOfFriendship();
+    fluidFlow();
 
     // init render objects
     initParticles();
@@ -750,7 +750,7 @@ void VulkanEngine::initParticles() {
     }
 
     // create inner boundary particles
-    for (int i = 0; i < bCount; i++) {
+    for (int i = 0; i < sphSolver.boundaryCount(); i++) {
         p = sphSolver.boundaryPosition(i) - sphSolver.cellSize();
         c = sphSolver.boundaryColor(i);
 
@@ -916,7 +916,7 @@ void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
         drawSingleObject(commandBuffer, renderables.size() - 3); // surface
 
     if (showBoundaries)
-        drawInstanced(commandBuffer, bCount, 1 + sphSolver.fluidCount()); // boundary particles
+        drawInstanced(commandBuffer, sphSolver.boundaryCount(), 1 + sphSolver.fluidCount()); // boundary particles
 
     drawSingleObject(commandBuffer, renderables.size() - 1); // back wall
 
@@ -1013,7 +1013,7 @@ void VulkanEngine::showStatistics() {
 
 
 // Scenarii
-void VulkanEngine::dropOnTheBeach() {
+void VulkanEngine::dropAndSplash() {
     RenderObject object{};
     renderables.push_back(object);
 
@@ -1076,14 +1076,14 @@ void VulkanEngine::dropOnTheBeach() {
     sphSolver.prepareSolver(fluidPos, boundaryPos);
 }
 
-void VulkanEngine::bunnyBath() {
+void VulkanEngine::breakingDam() {
     // init solver
     Real spacing = 1.0f / 4;
     sphSolver = IISPHsolver3D(spacing);
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(26.0f, 30.0f, 14.0f);
+    Vec3f gridSize(27.0f, 27.0f, 14.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -1115,22 +1115,20 @@ void VulkanEngine::bunnyBath() {
         p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
         vertices.push_back(Vec3f(p.x, p.y, p.z));
     }
-
     Sampler::meshSurface(boundaryPos, vertices, indices, sphSolver.getParticleHelper());
-    bCount = boundaryPos.size();
 
     // finish initialization
     sphSolver.prepareSolver(fluidPos, boundaryPos);
 }
 
-void VulkanEngine::glassOfFriendship() {
+void VulkanEngine::fluidFlow() {
     // init solver
     Real spacing = 1.0f / 4;
     sphSolver = IISPHsolver3D(spacing);
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(35.0f, 27.0f, 15.0f);
+    Vec3f gridSize(28.0f, 20.0f, 14.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -1143,13 +1141,13 @@ void VulkanEngine::glassOfFriendship() {
     Real  offset50 = 0.50f * pCellSize;
     Real  offset100 = 1.00f * pCellSize;
 
-    size       = { gridSize.x / 2 - 5.0f, std::round(gridSize.y / 3.3f), gridSize.z };
-    offset     = { 0, gridSize.y - size.y - 2.0f, (gridSize.z - size.z) / 2 };
+    size       = { gridSize.x / 2 - 2.0f, std::round(gridSize.y / 3.0f), gridSize.z };
+    offset     = { 0, gridSize.y - size.y, (gridSize.z - size.z) / 2};
     bottomLeft = offset;
     topRight   = size + offset;
 
-    Vec3f pipeSize = Vec3f(2 * pCellSize, 8.0f, 3.0f);
-    Vec3f pipeOffset = Vec3f(topRight.x - offset100, bottomLeft.y - pipeSize.y / 4, (gridSize.z - pipeSize.z) / 2);
+    Vec3f pipeSize = Vec3f(2 * pCellSize, 3.0f, 3.0f);
+    Vec3f pipeOffset = Vec3f(topRight.x - offset100, bottomLeft.y, (gridSize.z - pipeSize.z) / 2);
     Vec3f potentialPoint{};
 
     for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
@@ -1162,7 +1160,7 @@ void VulkanEngine::glassOfFriendship() {
            
             potentialPoint = { topRight.x - offset50, j, k };
 
-            if (potentialPoint.distanceSquareTo(pipeOffset + pipeSize / 2) > square(pipeSize.y / 4))
+            if (potentialPoint.distanceSquareTo(pipeOffset + pipeSize / 2) > square(pipeSize.y / 2))
                 boundaryPos.push_back(potentialPoint); // right
         }
 
@@ -1174,8 +1172,8 @@ void VulkanEngine::glassOfFriendship() {
     bottomLeft = pipeOffset;
     topRight = pipeSize + pipeOffset;
 
-    for (int count = 0; count < 38; count++) {
-        Sampler::cylinderSurface(boundaryPos, spacing, (bottomLeft + topRight) / 2, pipeSize.y / 4, spacing, false);
+    for (int count = 0; count < 10; count++) {
+        Sampler::cylinderSurface(boundaryPos, spacing, (bottomLeft + topRight) / 2, pipeSize.y / 2, spacing, false);
         bottomLeft -= pente;
         topRight -= pente;
     }
@@ -1187,29 +1185,28 @@ void VulkanEngine::glassOfFriendship() {
     bottomLeft = offset;
     topRight = size + offset;
 
-    std::vector<Vec3f> safeWall = std::vector<Vec3f>();
-
     for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50)
         for (float k = bottomLeft.z + offset100; k < topRight.z - offset50; k += offset50) {
             potentialPoint = { bottomLeft.x + offset50, j, k };
 
-            if (potentialPoint.distanceSquareTo(pipeOffset) > square(pipeSize.y / 4) + pCellSize)
-                safeWall.push_back(potentialPoint); // left
+            if (potentialPoint.distanceSquareTo(pipeOffset) > square(pipeSize.y / 2) + pCellSize)
+                boundaryPos.push_back(potentialPoint); // left
         }
 
     // end of pipe
-    for (int count = 0; count < 8; count++) {
-        Sampler::cylinderSurface(boundaryPos, spacing, pipeOffset, pipeSize.y / 4, spacing, false);
+    for (int count = 0; count < 10; count++) {
+        Sampler::cylinderSurface(boundaryPos, spacing, pipeOffset, pipeSize.y / 2, spacing, false);
         pipeOffset -= pente;
     }
 
     // glass
-    offset = { (bottomLeft.x + gridSize.x) / 2 + pCellSize, pCellSize, gridSize.z / 2};
-    Real maxRadius = gridSize.z / 2 - 3 * pCellSize;
-    Real minRadius = maxRadius * 0.3f;
+    offset = { (bottomLeft.x + gridSize.x) / 2, pCellSize, gridSize.z / 2 };
+    Real height = pipeOffset.y - pipeSize.y / 2 - 2 * pCellSize;
+    Real maxRadius = gridSize.z / 2 - 4 * pCellSize;
+    Real minRadius = 0.3f * maxRadius;
+    Sampler::glassSurface(boundaryPos, spacing, offset, minRadius, maxRadius, height);
 
-    bCount = Sampler::glassSurface(boundaryPos, spacing, offset, minRadius, maxRadius, pipeOffset.y - pipeSize.y / 4 - 3 * pCellSize);
-    glm::vec3 position(offset.x - pCellSize, offset.y + 0.95f * maxRadius - pCellSize, offset.z - pCellSize), color(0.8f, 0.7f, 0.2f), glassSize(0.95f * maxRadius), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    glm::vec3 position(offset.x - pCellSize, offset.y + maxRadius - pCellSize, offset.z - pCellSize), color(0.8f, 0.7f, 0.2f), glassSize(maxRadius), rotationAxis(0.0f, 1.0f, 0.0f), p{};
     float angle(0.0f);
 
     RenderObject glass{};
@@ -1219,13 +1216,11 @@ void VulkanEngine::glassOfFriendship() {
     glass.albedoColor = color;
     renderables.push_back(glass);
 
-    boundaryPos.insert(boundaryPos.end(), safeWall.begin(), safeWall.end());
-
     // finish initialization
     sphSolver.prepareSolver(fluidPos, boundaryPos);
 }
 
-void VulkanEngine::crazyWaves() {
+void VulkanEngine::dynamicBoundaries() {
     // init solver
     Real spacing = 1.0f / 4;
     sphSolver = IISPHsolver3D(spacing);

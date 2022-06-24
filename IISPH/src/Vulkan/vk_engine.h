@@ -99,7 +99,6 @@ private:
     // Logic
     IISPHsolver3D sphSolver;
     unsigned int frameCount = 1;
-    unsigned int bCount     = 0;
     float appTimer          = 0.0f;
     float lastClockTime     = 0.0f;
     float currentClockTime  = 0.0f;
@@ -107,7 +106,7 @@ private:
     // Flags
     bool windowResized   = false;
     bool appTimerStopped = true;
-    bool navigationOn    = false;
+    bool navigationOn    = true;
     bool simulationOn    = true;
     bool wireframeViewOn = false;
     bool particleViewOn  = true;
@@ -182,8 +181,8 @@ private:
     void showStatistics();
 
     // Scenarii
-    void dropOnTheBeach();
-    void bunnyBath();
-    void glassOfFriendship();
-    void crazyWaves();
+    void dropAndSplash();
+    void breakingDam();
+    void fluidFlow();
+    void dynamicBoundaries();
 };

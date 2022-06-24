@@ -117,19 +117,23 @@ public:
         }
     }
 
-    static uint32_t glassSurface(std::vector<Vec3f>& positions, Real spacing, Vec3f bottomCenter, Real minRadius, Real maxRadius, Real height) {
+    static void glassSurface(std::vector<Vec3f>& positions, Real spacing, Vec3f bottomCenter, Real minRadius, Real maxRadius, Real height) {
         Vec3f newPoint{bottomCenter};
         Real r{minRadius}, h{ spacing / 2 }, x{}, alpha{};
         Index n{};
         Real bend = 0.4f * height;
         positions.push_back(newPoint);
 
-        while (r > 1.5f * spacing) {
+        // bottom
+        while (r > spacing + h) {
             r -= spacing;
+
             x = 3 * square(h) * (1 - square(h) / (3 * r)) / (square(r) - square(h) / 4);
+            if (x <= 0 || x >= 2)
+                break;
+
             alpha = acos(1 - x);
             n = (Index)(2 * M_PI / alpha) - 1;
-
             alpha = 2 * M_PI / (n + 1);
 
             for (Index i = 0; i <= n; i++) {
@@ -141,6 +145,7 @@ public:
             }
         }
 
+        // side
         for (Real offset = 0; offset < height; offset += 0.7f * spacing * r / maxRadius) {
 
             if (offset < bend)
@@ -148,13 +153,12 @@ public:
             else
                 r = maxRadius - 2.0f * maxRadius * (1 - exp(-0.2f * (offset - bend) / (height - bend)));
 
-            if (r < spacing)
-                return positions.size();
+            x  = 3 * square(h) * (1 - square(h) / (3 * r)) / (square(r) - square(h) / 4);
+            if (x <= 0 || x >= 2)
+                break;
 
-            x     = 3 * square(h) * (1 - square(h) / (3 * r)) / (square(r) - square(h) / 4);
             alpha = acos(1 - x);
             n     = (Index)(2 * M_PI / alpha) - 1;
-
             alpha = 2 * M_PI / (n + 1);
 
             for (Index i = 0; i <= n; i++) {
@@ -165,58 +169,6 @@ public:
                 positions.push_back(newPoint);
             }
         }
-        uint32_t size = positions.size();
-
-        bend = height + 1.0f;
-        for (Real offset = height; offset < bend; offset += h) {
-            r += h;
-
-            x = 3 * square(h) * (1 - square(h) / (3 * r)) / (square(r) - square(h) / 4);
-            alpha = acos(1 - x);
-            n = (Index)(2 * M_PI / alpha) - 1;
-
-            alpha = 2 * M_PI / (n + 1);
-
-            for (Index i = 0; i <= n; i++) {
-                newPoint.x = r * cos(alpha * i) + bottomCenter.x;
-                newPoint.y = offset + bottomCenter.y;
-                newPoint.z = r * sin(alpha * i) + bottomCenter.z;
-                
-                positions.push_back(newPoint);
-            }
-        }
-
-        Real top = height + 8.0f;
-        for (Real offset = bend + h; offset < top - 2 * spacing; offset += spacing) {
-
-            for (Index i = 0; i <=n; i++) {
-                if (i <= 4 * n / 9 || i > n * 5.1 / 9) {
-                    newPoint.x = r * cos(alpha * i) + bottomCenter.x;
-                    newPoint.y = offset + bottomCenter.y;
-                    newPoint.z = r * sin(alpha * i) + bottomCenter.z;
-
-                    positions.push_back(newPoint);
-                }
-            }
-        }
-
-        while (r > 1.5f * spacing) {
-            r -= spacing;
-            x = 3 * square(h) * (1 - square(h) / (3 * r)) / (square(r) - square(h) / 4);
-            alpha = acos(1 - x);
-            n = (Index)(2 * M_PI / alpha) - 1;
-
-            alpha = 2 * M_PI / (n + 1);
-
-            for (Index i = 0; i <= n; i++) {
-                newPoint.x = r * cos(alpha * i) + bottomCenter.x;
-                newPoint.y = top;
-                newPoint.z = r * sin(alpha * i) + bottomCenter.z;
-
-                positions.push_back(newPoint);
-            }
-        }
-        return size;
     }
 
     static void meshSurface(std::vector<Vec3f>& positions, std::vector<Vec3f> vertices, std::vector<uint32_t> indices, GridHelper grid) {

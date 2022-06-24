@@ -56,7 +56,7 @@ public:
     const inline Vec3f& fluidPosition(const Index i) const { return _fPosition[i]; }
     const inline Vec3f& fluidColor(const Index i)    const { return _fColor[i]; }
 
-    const inline Index  boundaryCount()                 const { return _boundaryCount; }
+    const inline Index  boundaryCount()                 const { return _inBoundaryCount; }
     const inline Vec3f& boundaryPosition(const Index i) const { return _bPosition[i]; }
     const inline Vec3f& boundaryColor(const Index i)    const { return _bColor[i]; }
 
@@ -176,10 +176,11 @@ private:
 
 
     // simulation
-    int  _fluidCount    = 0;      // number of fluid particles
-    int  _boundaryCount = 0;      // number of boundary particles
-    int  _surfaceCount  = 0;      // number of surface nodes
-    Real _avgDensity    = 0.0f;   // average density of fluid
+    int  _fluidCount      = 0;      // total number of fluid particles
+    int  _inBoundaryCount = 0;      // numer of inner boundary particles
+    int  _boundaryCount   = 0;      // total number of boundary particles
+    int  _surfaceCount    = 0;      // number of surface nodes
+    Real _avgDensity      = 0.0f;   // average density of fluid
 
     // SPH coefficients
     Real  _dtCFL;                 // time step from CFL condition
