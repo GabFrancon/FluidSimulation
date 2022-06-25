@@ -715,7 +715,7 @@ void VulkanEngine::initScene() {
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(16, 23, 12), -65.0f, -59.0f);
+    camera = Camera(glm::vec3(32, 20, 24), -35.0f, -135.0f);
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
@@ -843,7 +843,7 @@ void VulkanEngine::updateScene() {
                 updateSurface();
 
             // check the stop condition
-            if (frameCount >= 1802)
+            if (frameCount >= 2102)
                 glfwSetWindowShouldClose(window, true);
         }
         else {
@@ -1128,7 +1128,7 @@ void VulkanEngine::fluidFlow() {
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(28.0f, 20.0f, 14.0f);
+    Vec3f gridSize(25.0f, 16.0f, 15.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -1165,7 +1165,7 @@ void VulkanEngine::fluidFlow() {
         }
 
     // fluid reserve
-    Sampler::cubeVolume(fluidPos, pCellSize, offset + pCellSize, offset + Vec3f(size.x, size.y * 0.6f, size.z) - pCellSize);
+    Sampler::cubeVolume(fluidPos, pCellSize, offset + pCellSize, offset + Vec3f(size.x, size.y * 0.7f, size.z) - pCellSize);
 
     // pipe
     Vec3f pente = Vec3f(-spacing, spacing / 2, 0.0f);
@@ -1194,26 +1194,28 @@ void VulkanEngine::fluidFlow() {
         }
 
     // end of pipe
-    for (int count = 0; count < 10; count++) {
+    for (int count = 0; count < 3; count++) {
         Sampler::cylinderSurface(boundaryPos, spacing, pipeOffset, pipeSize.y / 2, spacing, false);
         pipeOffset -= pente;
     }
 
     // glass
+    
     offset = { (bottomLeft.x + gridSize.x) / 2, pCellSize, gridSize.z / 2 };
     Real height = pipeOffset.y - pipeSize.y / 2 - 2 * pCellSize;
-    Real maxRadius = gridSize.z / 2 - 4 * pCellSize;
+    Real maxRadius = gridSize.z / 2 - 6 * pCellSize;
     Real minRadius = 0.3f * maxRadius;
-    Sampler::glassSurface(boundaryPos, spacing, offset, minRadius, maxRadius, height);
-
+    //Sampler::glassSurface(boundaryPos, spacing, offset, minRadius, maxRadius, height);
+    Sampler::cylinderSurface(boundaryPos, spacing, offset, maxRadius, height);
+    
     glm::vec3 position(offset.x - pCellSize, offset.y + maxRadius - pCellSize, offset.z - pCellSize), color(0.8f, 0.7f, 0.2f), glassSize(maxRadius), rotationAxis(0.0f, 1.0f, 0.0f), p{};
     float angle(0.0f);
-
+    
     RenderObject glass{};
-    glass.mesh = getMesh("glass");
-    glass.material = getMaterial("bas_col_fill_back");
-    glass.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), glassSize);
-    glass.albedoColor = color;
+    //glass.mesh = getMesh("glass");
+    //glass.material = getMaterial("bas_col_fill_back");
+    //glass.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), glassSize);
+    //glass.albedoColor = color;
     renderables.push_back(glass);
 
     // finish initialization
