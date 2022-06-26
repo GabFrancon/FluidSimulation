@@ -579,22 +579,22 @@ void VulkanEngine::initAssets() {
     createMaterial("bas_col_line_back" , VK_NULL_HANDLE, VulkanPipeline(&context, BASIC_VERT_SHADER_PATH    , COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE, VK_CULL_MODE_BACK_BIT));
     createMaterial("bas_col_fill_front", VK_NULL_HANDLE, VulkanPipeline(&context, BASIC_VERT_SHADER_PATH    , COLORED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL, VK_CULL_MODE_FRONT_BIT));
 
-    createMaterial("bas_water_fill_back", getTexture("water"), VulkanPipeline(&context, BASIC_VERT_SHADER_PATH, TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT));
-    createMaterial("bas_water_line_back", getTexture("water"), VulkanPipeline(&context, BASIC_VERT_SHADER_PATH, TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE, VK_CULL_MODE_BACK_BIT));
-    createMaterial("bas_bunny_fill_back", getTexture("bunny"), VulkanPipeline(&context, BASIC_VERT_SHADER_PATH, TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT));
-    createMaterial("bas_bunny_line_back", getTexture("bunny"), VulkanPipeline(&context, BASIC_VERT_SHADER_PATH, TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE, VK_CULL_MODE_BACK_BIT));
+    createMaterial("bas_submarine_fill_back", getTexture("submarine"), VulkanPipeline(&context, BASIC_VERT_SHADER_PATH, TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT));
+    createMaterial("bas_submarine_line_back", getTexture("submarine"), VulkanPipeline(&context, BASIC_VERT_SHADER_PATH, TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE, VK_CULL_MODE_BACK_BIT));
+    createMaterial("bas_bunny_fill_back"    , getTexture("bunny"), VulkanPipeline(&context, BASIC_VERT_SHADER_PATH, TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT));
+    createMaterial("bas_bunny_line_back"    , getTexture("bunny"), VulkanPipeline(&context, BASIC_VERT_SHADER_PATH, TEXTURED_FRAG_SHADER_PATH, VK_POLYGON_MODE_LINE, VK_CULL_MODE_BACK_BIT));
 
     loadMeshes();
     getMesh("sphere")->upload(commandPool);
     getMesh("cube")->upload(commandPool);
     getMesh("bunny")->upload(commandPool);
-    getMesh("glass")->upload(commandPool);
+    getMesh("submarine")->upload(commandPool);
 }
 
 void VulkanEngine::loadTextures() {
-    Texture waterTex{ &context };
-    waterTex.loadFromFile(commandPool, WATER_TEXTURE_PATH.c_str());
-    textures["water"] = waterTex;
+    Texture submarineTex{ &context };
+    submarineTex.loadFromFile(commandPool, SUBMARINE_TEXTURE_PATH.c_str());
+    textures["submarine"] = submarineTex;
 
     Texture bunnyTex{ &context };
     bunnyTex.loadFromFile(commandPool, BUNNY_TEXTURE_PATH.c_str());
@@ -614,9 +614,9 @@ void VulkanEngine::loadMeshes() {
     bunny.loadFromObj(BUNNY_MODEL_PATH.c_str(), false, true);
     meshes["bunny"] = bunny;
 
-    Mesh glass{ &context };
-    glass.loadFromObj(GLASS_MODEL_PATH.c_str(), false, false);
-    meshes["glass"] = glass;
+    Mesh submarine{ &context };
+    submarine.loadFromObj(SUBMARINE_MODEL_PATH.c_str(), false, false);
+    meshes["submarine"] = submarine;
 
     Mesh geodesic{ &context };
     geodesic.genSphere(0);
@@ -642,11 +642,11 @@ void VulkanEngine::createMaterial(const std::string name, Texture* texture, Vulk
 void VulkanEngine::switchViewMode() {
 
     if (wireframeViewOn) {
-        renderables[0].material = getMaterial("bas_col_line_back"); // bunny or glass
+        renderables[0].material = getMaterial("bas_submarine_line_back"); // obstacle
         renderables[renderables.size() - 3].material = getMaterial("bas_col_line_back"); // surface
     }
     else {
-        renderables[0].material = getMaterial("bas_col_fill_back"); // bunny or glass
+        renderables[0].material = getMaterial("bas_submarine_fill_back"); // obstacle
         renderables[renderables.size() - 3].material = getMaterial("bas_col_fill_back"); // surface
     }
 }
@@ -715,12 +715,12 @@ void VulkanEngine::initScene() {
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(32, 20, 24), -35.0f, -135.0f);
+    camera = Camera(glm::vec3(29, 19, 21), -35.0f, -135.0f);
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
     // init SPH solver with one of the predefined scenario
-    fluidFlow();
+    breakingDam();
 
     // init render objects
     initParticles();
@@ -843,7 +843,7 @@ void VulkanEngine::updateScene() {
                 updateSurface();
 
             // check the stop condition
-            if (frameCount >= 2102)
+            if (frameCount > 1200)
                 glfwSetWindowShouldClose(window, true);
         }
         else {
@@ -851,7 +851,7 @@ void VulkanEngine::updateScene() {
             updateSurface();
 
             // check the restart condition
-            if (frameCount >= 1200)
+            if (frameCount > 1200)
                 frameCount = 1;
         }
         frameCount++;
@@ -905,7 +905,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    //drawSingleObject(commandBuffer, 0); // solid objet
+    drawSingleObject(commandBuffer, 0); // obstacle
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 
@@ -1083,7 +1083,7 @@ void VulkanEngine::breakingDam() {
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(27.0f, 27.0f, 14.0f);
+    Vec3f gridSize(28.0f, 25.0f, 16.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -1092,26 +1092,26 @@ void VulkanEngine::breakingDam() {
     std::vector<Vec3f> boundaryPos = std::vector<Vec3f>();
 
     // fluid mass
-    Vec3f fluidSize(7.0f, 12.0f, gridSize.z - 2 * pCellSize);
+    Vec3f fluidSize(5.0f, 10.0f, gridSize.z - 2 * pCellSize);
     Sampler::cubeVolume(fluidPos, pCellSize, Vec3f(pCellSize), fluidSize + pCellSize);
 
-    // bunny
-    glm::vec3 position(gridSize.x / 2 + 3.0f, 2.5f, gridSize.z / 2 + 1.0f), color(0.8f, 0.7f, 0.2f), size(5.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
-    float angle(0.0f);
+    // submarine
+    glm::vec3 position(gridSize.x / 2 + fluidSize.x / 2, 2.0f, gridSize.z / 2), color(0.8f, 0.7f, 0.2f), size(1.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    float constexpr angle = glm::radians(-60.0f);
 
-    RenderObject bunny{};
-    bunny.mesh = getMesh("bunny");
-    bunny.material = getMaterial("bas_bunny_fill_back");
-    bunny.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
-    bunny.albedoColor = color;
-    renderables.push_back(bunny);
+    RenderObject submarine{};
+    submarine.mesh = getMesh("submarine");
+    submarine.material = getMaterial("bas_submarine_fill_back");
+    submarine.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), size);
+    submarine.albedoColor = color;
+    renderables.push_back(submarine);
 
-    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), 0.8f * size);
+    glm::mat4 modelMat = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position + pCellSize), angle, rotationAxis), glm::vec3(size.x * 0.8f, size.y * 0.9f, size.z * 0.97f));
 
     std::vector<Vec3f> vertices = std::vector<Vec3f>();
-    std::vector<uint32_t> indices = bunny.mesh->indices;
+    std::vector<uint32_t> indices = submarine.mesh->indices;
 
-    for (Vertex& v : bunny.mesh->vertices) {
+    for (Vertex& v : submarine.mesh->vertices) {
         p = glm::vec3(modelMat * glm::vec4(v.position, 1.0f));
         vertices.push_back(Vec3f(p.x, p.y, p.z));
     }
@@ -1178,6 +1178,8 @@ void VulkanEngine::fluidFlow() {
         topRight -= pente;
     }
 
+    std::vector<Vec3f> temp = std::vector<Vec3f>();
+
     // safe wall
     size = { gridSize.x - bottomLeft.x, gridSize.y, gridSize.z };
     offset = { bottomLeft.x, 0.0f, 0.0f };
@@ -1190,7 +1192,7 @@ void VulkanEngine::fluidFlow() {
             potentialPoint = { bottomLeft.x + offset50, j, k };
 
             if (potentialPoint.distanceSquareTo(pipeOffset) > square(pipeSize.y / 2) + pCellSize)
-                boundaryPos.push_back(potentialPoint); // left
+                temp.push_back(potentialPoint); // left
         }
 
     // end of pipe
@@ -1204,18 +1206,12 @@ void VulkanEngine::fluidFlow() {
     offset = { (bottomLeft.x + gridSize.x) / 2, pCellSize, gridSize.z / 2 };
     Real height = pipeOffset.y - pipeSize.y / 2 - 2 * pCellSize;
     Real maxRadius = gridSize.z / 2 - 6 * pCellSize;
-    Real minRadius = 0.3f * maxRadius;
-    //Sampler::glassSurface(boundaryPos, spacing, offset, minRadius, maxRadius, height);
+
     Sampler::cylinderSurface(boundaryPos, spacing, offset, maxRadius, height);
-    
     glm::vec3 position(offset.x - pCellSize, offset.y + maxRadius - pCellSize, offset.z - pCellSize), color(0.8f, 0.7f, 0.2f), glassSize(maxRadius), rotationAxis(0.0f, 1.0f, 0.0f), p{};
     float angle(0.0f);
     
     RenderObject glass{};
-    //glass.mesh = getMesh("glass");
-    //glass.material = getMaterial("bas_col_fill_back");
-    //glass.modelMatrix = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), angle, rotationAxis), glassSize);
-    //glass.albedoColor = color;
     renderables.push_back(glass);
 
     // finish initialization

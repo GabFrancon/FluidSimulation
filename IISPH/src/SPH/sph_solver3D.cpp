@@ -291,7 +291,7 @@ void IISPHsolver3D::addViscousForce(int i) {
         if (_fPosition[j] != _fPosition[i]) {
             pos_ij = _fPosition[i] - _fPosition[j];
             vel_ij = _fVelocity[i] - _fVelocity[j];
-            _Fadv[i] += 2 * _nu * (square(_m0) / _fDensity[j]) * vel_ij.dotProduct(pos_ij) * _pKernel.gradW(pos_ij) / (pos_ij.lengthSquare() + 0.01 * _h);
+            _Fadv[i] += 2 * _nu * (square(_m0) / _fDensity[j]) * vel_ij.dotProduct(pos_ij) * _pKernel.gradW(pos_ij) / (pos_ij.lengthSquare() + 0.01 * square(_h));
         }
 }
 

@@ -24,13 +24,13 @@ static const int MAX_OBJECTS_RENDERED  = 200000;
 static const int MAX_MATERIALS_CREATED = 20;
 static const int MAX_FRAMES_IN_FLIGHT  = 2;
 
-static const std::string SPHERE_MODEL_PATH  = "assets/models/sphere.obj";
-static const std::string CUBE_MODEL_PATH    = "assets/models/cube.obj";
-static const std::string BUNNY_MODEL_PATH   = "assets/models/bunny.obj";
-static const std::string GLASS_MODEL_PATH   = "assets/models/glass.obj";
+static const std::string SPHERE_MODEL_PATH    = "assets/models/sphere.obj";
+static const std::string CUBE_MODEL_PATH      = "assets/models/cube.obj";
+static const std::string BUNNY_MODEL_PATH     = "assets/models/bunny.obj";
+static const std::string SUBMARINE_MODEL_PATH = "assets/models/submarine.obj";
 
-static const std::string WATER_TEXTURE_PATH = "assets/textures/water.jpg";
-static const std::string BUNNY_TEXTURE_PATH = "assets/textures/bunny.png";
+static const std::string BUNNY_TEXTURE_PATH     = "assets/textures/bunny.png";
+static const std::string SUBMARINE_TEXTURE_PATH = "assets/textures/submarine.png";
 
 static const std::string BASIC_VERT_SHADER_PATH     = "shaders/basic_vert.spv";
 static const std::string INSTANCED_VERT_SHADER_PATH = "shaders/instanced_vert.spv";
@@ -106,7 +106,7 @@ private:
     // Flags
     bool windowResized   = false;
     bool appTimerStopped = true;
-    bool navigationOn    = false;
+    bool navigationOn    = true;
     bool simulationOn    = true;
     bool wireframeViewOn = false;
     bool particleViewOn  = true;
