@@ -44,12 +44,12 @@
 ///fluid flow///
 ////////////////
  
-- fluid particles      =    40 000
-- boundary particles   =    80 000
-- distance field nodes = 7 350 000
+- fluid particles      =    22 000
+- boundary particles   =    38 000
+- distance field nodes = 3 137 000
 
 - spacing  = 0.25 m
 - timestep = 2 x 0.00833 s / frame (60 fps)
 
-- particle simulation time    =  55 ms / frame
-- surface reconstruction time = 530 ms / frame
+- particle simulation time    = 80 ms / frame
+- surface reconstruction time = 640 ms / frame
