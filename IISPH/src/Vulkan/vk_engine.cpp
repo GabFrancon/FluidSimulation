@@ -1083,7 +1083,7 @@ void VulkanEngine::breakingDam() {
 
     Real  pCellSize = 2 * spacing;
     Real  sCellSize = spacing / 2;
-    Vec3f gridSize(28.0f, 25.0f, 16.0f);
+    Vec3f gridSize(25.0f, 25.0f, 15.0f);
 
     sphSolver.setParticleHelper(pCellSize, gridSize);
     sphSolver.setSurfaceHelper(sCellSize, gridSize);
@@ -1091,13 +1091,55 @@ void VulkanEngine::breakingDam() {
     std::vector<Vec3f> fluidPos = std::vector<Vec3f>();
     std::vector<Vec3f> boundaryPos = std::vector<Vec3f>();
 
+    // borders
+    Vec3f bottomLeft{}, topRight{};
+    Real offset50 = 0.50f * pCellSize;
+    Real offset100 = 1.00f * pCellSize;
+    Real thick = 3.0f;
+    Real height = 10.0f;
+
+    Vec3f borderSize(thick, height, gridSize.z - thick + pCellSize / 2);
+    Vec3f offset = Vec3f(gridSize.x - thick, 0.0f, thick - pCellSize / 2);
+
+    bottomLeft = offset;
+    topRight = offset + borderSize;
+
+    for (float i = bottomLeft.x + offset50; i < topRight.x; i += offset50)
+        for (float k = bottomLeft.z + offset50; k < topRight.z - offset50; k += offset50) {
+            boundaryPos.push_back(Vec3f(i, topRight.y - offset50, k));   // top
+        }
+
+    for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50)
+        for (float k = bottomLeft.z + offset50; k < topRight.z - offset50; k += offset50) {
+            boundaryPos.push_back(Vec3f(bottomLeft.x + offset50, j, k)); // left
+        }
+
+    borderSize = { gridSize.x - thick, height, thick};
+    offset = { 0.0f, 0.0f, 0.0f};
+
+    bottomLeft = offset;
+    topRight = offset + borderSize;
+
+    for (float i = bottomLeft.x + offset50; i < topRight.x + thick; i += offset50)
+        for (float k = bottomLeft.z + offset50; k < topRight.z; k += offset50) {
+            boundaryPos.push_back(Vec3f(i, topRight.y - offset50, k));   // top
+        }
+
+    for (float i = bottomLeft.x + offset50; i < topRight.x + pCellSize; i += offset50)
+        for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50) {
+
+            boundaryPos.push_back(Vec3f(i, j, topRight.z - offset50));   // front
+        }
+
     // fluid mass
-    Vec3f fluidSize(5.0f, 10.0f, gridSize.z - 2 * pCellSize);
-    Sampler::cubeVolume(fluidPos, pCellSize, Vec3f(pCellSize), fluidSize + pCellSize);
+    Vec3f fluidSize(7.5f, 1.6f * height, gridSize.z - pCellSize - thick);
+    offset = {pCellSize, pCellSize, thick};
+    Sampler::cubeVolume(fluidPos, pCellSize, offset, fluidSize + offset);
+    
 
     // submarine
-    glm::vec3 position(gridSize.x / 2 + fluidSize.x / 2, 2.0f, gridSize.z / 2), color(0.8f, 0.7f, 0.2f), size(1.0f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
-    float constexpr angle = glm::radians(-60.0f);
+    glm::vec3 position((gridSize.x - thick) / 2 + fluidSize.x / 2, 4.0f, (gridSize.z + thick) / 2), color(0.8f, 0.7f, 0.2f), size(0.6f), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    float constexpr angle = glm::radians(-70.0f);
 
     RenderObject submarine{};
     submarine.mesh = getMesh("submarine");
@@ -1123,7 +1165,7 @@ void VulkanEngine::breakingDam() {
 
 void VulkanEngine::fluidFlow() {
     // init solver
-    Real spacing = 1.0f / 4;
+    Real spacing = 1.0f / 8;
     sphSolver = IISPHsolver3D(spacing);
 
     Real  pCellSize = 2 * spacing;
@@ -1165,7 +1207,7 @@ void VulkanEngine::fluidFlow() {
         }
 
     // fluid reserve
-    Sampler::cubeVolume(fluidPos, pCellSize, offset + pCellSize, offset + Vec3f(size.x, size.y * 0.7f, size.z) - pCellSize);
+    Sampler::cubeVolume(fluidPos, pCellSize, offset + 1.5f * pCellSize, offset + Vec3f(size.x, size.y * 0.7f, size.z) - 1.5f * pCellSize);
 
     // pipe
     Vec3f pente = Vec3f(-spacing, spacing / 2, 0.0f);
@@ -1174,6 +1216,7 @@ void VulkanEngine::fluidFlow() {
 
     for (int count = 0; count < 10; count++) {
         Sampler::cylinderSurface(boundaryPos, spacing, (bottomLeft + topRight) / 2, pipeSize.y / 2, spacing, false);
+
         bottomLeft -= pente;
         topRight -= pente;
     }
@@ -1208,6 +1251,8 @@ void VulkanEngine::fluidFlow() {
     Real maxRadius = gridSize.z / 2 - 6 * pCellSize;
 
     Sampler::cylinderSurface(boundaryPos, spacing, offset, maxRadius, height);
+    Sampler::cylinderSurface(boundaryPos, spacing, offset, maxRadius + spacing, height);
+
     glm::vec3 position(offset.x - pCellSize, offset.y + maxRadius - pCellSize, offset.z - pCellSize), color(0.8f, 0.7f, 0.2f), glassSize(maxRadius), rotationAxis(0.0f, 1.0f, 0.0f), p{};
     float angle(0.0f);
     
