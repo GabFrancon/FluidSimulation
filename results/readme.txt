@@ -26,6 +26,23 @@
 - particle simulation omp =  91 ms / frame
 - surface  generation omp = 424 ms / frame
 
+/-----zoom on CPU computation only-----\
+
+general statistics :
+
+|    SPH simulation         :  48.45 ms
+|    surface reconstruction : 297.507 ms
+
+
+detailed statistics :
+
+|    search neighbors  : 19.6616 ms
+|    predict advection : 11.9035 ms
+|    solve pressure    : 14.6869 ms
+|    correct position  : 2.19791 ms
+|    distance field    : 252.608 ms
+|    marching cubes    : 44.8991 ms
+
 
 
 //////////////////
@@ -45,6 +62,23 @@
 - particle simulation omp =  117 ms / frame
 - surface  generation omp =  800 ms / frame
 
+/-----zoom on CPU computation only-----\
+
+general statistics :
+
+|    SPH simulation         : 53.9425 ms
+|    surface reconstruction : 433.297 ms
+
+
+detailed statistics :
+
+|    search neighbors  : 22.4007 ms
+|    predict advection : 13.5631 ms
+|    solve pressure    : 15.6671 ms
+|    correct position  : 2.31164 ms
+|    distance field    : 343.693 ms
+|    marching cubes    : 89.6040 ms
+
 
 
 ////////////////
@@ -63,3 +97,20 @@
 
 - particle simulation omp =   26 ms / frame
 - surface  generation omp =  260 ms / frame
+
+/-----zoom on CPU computation only-----\
+
+general statistics :
+
+|    SPH simulation         : 11.1033 ms
+|    surface reconstruction : 168.351 ms
+
+
+detailed statistics :
+
+|    search neighbors  : 5.39516 ms
+|    predict advection : 2.61276 ms
+|    solve pressure    : 2.94987 ms
+|    correct position  : 0.14553 ms
+|    distance field    : 132.432 ms
+|    marching cubes    : 35.9197 ms
