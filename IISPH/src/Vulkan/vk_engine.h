@@ -20,7 +20,7 @@ typedef std::chrono::high_resolution_clock Clock;
 static const uint32_t WIDTH  = 1600;
 static const uint32_t HEIGHT = 1200;
 
-static const int MAX_OBJECTS_RENDERED  = 1000000;
+static const int MAX_OBJECTS_RENDERED  = 500000;
 static const int MAX_MATERIALS_CREATED = 20;
 static const int MAX_FRAMES_IN_FLIGHT  = 2;
 

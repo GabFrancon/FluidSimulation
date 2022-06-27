@@ -12,7 +12,7 @@ void IISPHsolver3D::prepareSolver(std::vector<Vec3f> fluidPos, std::vector<Vec3f
     _inBoundaryCount = _bPosition.size();
 
     // sample global boundaries
-    Sampler::cubeSurface(_bPosition, _pGridHelper.cellSize(), Vec3f(0.0f), _pGridHelper.size(), 1);
+    Sampler::cubeSurface(_bPosition, _pGridHelper.cellSize(), Vec3f(0.0f), _pGridHelper.size(), 2);
     _boundaryCount = _bPosition.size();
 
     // sample distance field

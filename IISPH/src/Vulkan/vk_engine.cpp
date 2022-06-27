@@ -715,12 +715,12 @@ void VulkanEngine::initScene() {
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(29, 19, 21), -35.0f, -135.0f);
+    camera = Camera(glm::vec3(28, 18, 34), -25.0f, -125.0f);
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
     // init SPH solver with one of the predefined scenario
-    breakingDam();
+    fluidFlow();
 
     // init render objects
     initParticles();
@@ -905,7 +905,7 @@ void VulkanEngine::updateSurface() {
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
 
-    drawSingleObject(commandBuffer, 0); // obstacle
+    //drawSingleObject(commandBuffer, 0); // obstacle
 
     drawSingleObject(commandBuffer, renderables.size() - 2); // support
 
