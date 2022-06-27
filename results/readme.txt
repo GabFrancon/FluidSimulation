@@ -8,19 +8,23 @@
 
 - here are some parameters used in the predefined scenarii, as well as the corresponding statistics :
 
+
 /////////////////////
 ///drop and splash///
 /////////////////////
  
-- fluid particles      =    75 000
-- boundary particles   =    40 000
+- fluid particles      =    74 000
+- boundary particles   =    37 000
 - distance field nodes = 4 000 000
 
 - spacing  = 0.25 m
 - timestep = 2 x 0.00833 s / frame (60 fps)
 
-- particle simulation time    = 210 ms / frame
-- surface reconstruction time = 400 ms / frame
+- particle simulation =  688 ms / frame
+- surface  generation = 1844 ms / frame
+
+- particle simulation omp =  91 ms / frame
+- surface  generation omp = 424 ms / frame
 
 
 
@@ -28,15 +32,18 @@
 ///breaking dam///
 //////////////////
  
-- fluid particles      =   ?
-- boundary particles   =   ?
-- distance field nodes = ? ?
+- fluid particles      =   88 000
+- boundary particles   =   51 000
+- distance field nodes = 4 900 000
 
 - spacing  = 0.25 m
 - timestep = 2 x 0.00833 s / frame (60 fps)
 
-- particle simulation time    = ? ms / frame
-- surface reconstruction time = ? ms / frame
+- particle simulation =  958 ms / frame
+- surface  generation = 2450 ms / frame
+
+- particle simulation omp =  117 ms / frame
+- surface  generation omp =  800 ms / frame
 
 
 
@@ -44,12 +51,15 @@
 ///fluid flow///
 ////////////////
  
-- fluid particles      =    22 000
+- fluid particles      =    21 000
 - boundary particles   =    38 000
-- distance field nodes = 3 137 000
+- distance field nodes = 3 100 000
 
 - spacing  = 0.25 m
 - timestep = 2 x 0.00833 s / frame (60 fps)
 
-- particle simulation time    = 80 ms / frame
-- surface reconstruction time = 640 ms / frame
+- particle simulation =  192 ms / frame
+- surface  generation =  900 ms / frame
+
+- particle simulation omp =   26 ms / frame
+- surface  generation omp =  260 ms / frame
