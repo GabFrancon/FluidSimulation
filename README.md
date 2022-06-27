@@ -12,16 +12,16 @@ For each scenario, you can see the particle simulation and surface reconstructio
   <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/drop_on_the_beach.gif"/>
 </p>
 
+### Breaking dam scenario
+<p float="center">
+  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/breaking_dam.gif"/>
+  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/call_of_the_wolf.gif"/>
+</p>
+
 ### Fluid flow scenario
 <p float="center">
   <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/fluid_flow.gif"/>
   <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/glass_of_friendship.gif"/>
-</p>
-
-### Breaking dam scenario
-<p float="center">
-  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/breaking_dam.gif"/>
-  <img src="https://github.com/GabFrancon/IISPH/blob/main/results/gif/bunny_bath.gif"/>
 </p>
 
 
