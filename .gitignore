@@ -40,6 +40,7 @@ IISPH/x64/*
 *.vcxproj.user
 
 # raw data
+results/graphics/*
 results/screenshots/*
 results/meshes/*
 results/meshes_break/*
