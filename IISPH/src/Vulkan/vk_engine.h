@@ -12,9 +12,6 @@
 
 #include "../SPH/sph_solver3D.h"
 
-#include <chrono>
-typedef std::chrono::high_resolution_clock Clock;
-
 
 // global constants
 static const uint32_t WIDTH  = 1600;
@@ -114,15 +111,12 @@ private:
     bool recordAnim      = false;
     bool exportAnim      = false;
 
-    // statistics
-    double sphTimeComputation      = 0.0f;
-    double surfaceTimeComputation  = 0.0f;
-
     /*--------------------------------------CLASS FUNCTIONS--------------------------------------*/
 
     // Interface
     void        initInterface();
     void        createWindow();
+    void        printHotKeys();
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
     static void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
     static void mouseCallback(GLFWwindow* window, double xpos, double ypos);

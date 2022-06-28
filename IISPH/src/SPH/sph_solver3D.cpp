@@ -12,7 +12,7 @@ void IISPHsolver3D::prepareSolver(std::vector<Vec3f> fluidPos, std::vector<Vec3f
     _inBoundaryCount = _bPosition.size();
 
     // sample global boundaries
-    Sampler::cubeSurface(_bPosition, _pGridHelper.cellSize(), Vec3f(0.0f), _pGridHelper.size(), 2);
+    Sampler::cubeSurface(_bPosition, _pGridHelper.cellSize(), Vec3f(0.0f), _pGridHelper.size(), 1);
     _boundaryCount = _bPosition.size();
 
     // sample distance field
@@ -70,22 +70,74 @@ void IISPHsolver3D::prepareSolver(std::vector<Vec3f> fluidPos, std::vector<Vec3f
 }
 
 void IISPHsolver3D::solveSimulation() {
+    static Real count = 0.5f;
+
+    auto start = Clock::now();
     buildNeighborGrid();
     searchNeighbors();
+    std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start);
+    searchNeighborsTime = (elapsed.count() + (count - 1) * searchNeighborsTime) / count;
 
+    start = Clock::now();
     predictAdvection();
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start);
+    predictAdvectionTime = (elapsed.count() + (count - 1) * predictAdvectionTime) / count;
+
+    start = Clock::now();
     pressureSolve();
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start);
+    solvePressureTime = (elapsed.count() + (count - 1) * solvePressureTime) / count;
+
+
+    start = Clock::now();
     integration();
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start);
+    correctPositionTime = (elapsed.count() + (count - 1) * correctPositionTime) / count;
 
     visualizeFluidDensity();
+    count += 0.5f;
 }
 
 void IISPHsolver3D::reconstructSurface() {
+    static int count = 1;
+
+    auto start = Clock::now();
+
     #pragma omp parallel for
     for (int i = 0; i < _surfaceCount; i++)
         computeDistanceField(i, 2.0f * _h);
 
+    std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start);
+    distanceFieldTime = (elapsed.count() + (count - 1) * distanceFieldTime) / count;
+
+    start = Clock::now();
+
     generateIsoSurface();
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start);
+    marchingCubesTime = (elapsed.count() + (count - 1) * marchingCubesTime) / count;
+
+    count++;
+}
+
+void IISPHsolver3D::showGeneralStatistics() {
+    double sphComputation     = searchNeighborsTime + predictAdvectionTime + solvePressureTime + correctPositionTime;
+    double surfaceComputation = distanceFieldTime + marchingCubesTime;
+
+    std::cout
+        << "|    SPH simulation         : " << std::setw(6) << sphComputation     << " ms\n"
+        << "|    surface reconstruction : " << std::setw(6) << surfaceComputation << " ms\n"
+        << std::endl;
+}
+
+void IISPHsolver3D::showDetailedStatistics() {
+    std::cout
+        << "|    search neighbors  : " << std::setw(6) << searchNeighborsTime  << " ms\n"
+        << "|    predict advection : " << std::setw(6) << predictAdvectionTime << " ms\n"
+        << "|    solve pressure    : " << std::setw(6) << solvePressureTime    << " ms\n"
+        << "|    correct position  : " << std::setw(6) << correctPositionTime  << " ms\n"
+        << "|    distance field    : " << std::setw(6) << distanceFieldTime    << " ms\n"
+        << "|    marching cubes    : " << std::setw(6) << marchingCubesTime    << " ms\n"
+        << std::endl;
 }
 
 

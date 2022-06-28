@@ -23,6 +23,8 @@ void VulkanEngine::init() {
 }
 
 void VulkanEngine::run() {
+    printHotKeys();
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         update();
@@ -189,6 +191,20 @@ void VulkanEngine::createWindow() {
     glfwSetWindowUserPointer(window, this);
 }
 
+void VulkanEngine::printHotKeys() {
+    std::cout << "\nHot keys : \n"
+        << "        T ---> start/stop animation timer\n"
+        << "        R ---> on/off animation recording\n"
+        << "        O ---> on/off animation exportation\n"
+        << "        V ---> on/off wireframe view\n"
+        << "        P ---> on/off particle view\n"
+        << "        B ---> show/hide boundary particles\n"
+        << "        K ---> show statistics\n"
+        << "        H ---> get help for hot keys\n"
+        << "        ESC -> close window\n"
+        << std::endl;
+}
+
 void VulkanEngine::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
     auto engine = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
     engine->windowResized = true;
@@ -245,17 +261,7 @@ void VulkanEngine::keyboardCallback(GLFWwindow* window, int key, int scancode, i
     }
 
     else if (key == GLFW_KEY_H && action == GLFW_PRESS) {
-        std::cout << "\n\nHot keys : \n"
-            << "        T ---> start/stop animation timer\n"
-            << "        R ---> on/off animation recording\n"
-            << "        O ---> on/off animation exportation\n"
-            << "        V ---> on/off wireframe view\n"
-            << "        P ---> on/off particle view\n"
-            << "        B ---> show/hide boundary particles\n"
-            << "        K ---> show statistics\n"
-            << "        H ---> get help for hot keys\n"
-            << "        ESC -> close window\n"
-            << std::endl;
+        engine->printHotKeys();
     }
 }
 
@@ -715,12 +721,12 @@ void VulkanEngine::initScene() {
     sceneInfo.lightColor    = glm::vec3(1.0f);
 
     // init camera
-    camera = Camera(glm::vec3(28, 18, 34), -25.0f, -125.0f);
+    camera = Camera(glm::vec3(26, 26, 26), -35.0f, -135.0f);
     camera.updateViewMatrix();
     camera.setPerspectiveProjection(swapChain.extent.width / (float)swapChain.extent.height);
 
     // init SPH solver with one of the predefined scenario
-    fluidFlow();
+    dropAndSplash();
 
     // init render objects
     initParticles();
@@ -859,13 +865,8 @@ void VulkanEngine::updateScene() {
 }
 
 void VulkanEngine::solveSimulation() {
-    auto start = Clock::now();
-
     for (int i = 0; i < 2; i++)
         sphSolver.solveSimulation();
-
-    std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start);
-    sphTimeComputation = (elapsed.count() + (frameCount - 1) * sphTimeComputation) / frameCount;
 }
 
 void VulkanEngine::updateParticles() {
@@ -886,8 +887,6 @@ void VulkanEngine::updateParticles() {
 }
 
 void VulkanEngine::updateSurface() {
-    auto start = Clock::now();
-
     vkDeviceWaitIdle(context.device);
     getMesh("surface")->destroy();
 
@@ -898,9 +897,6 @@ void VulkanEngine::updateSurface() {
 
     getMesh("surface")->upload(commandPool);
     renderables[renderables.size() - 3].mesh = getMesh("surface");
-
-    std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start);
-    surfaceTimeComputation = (elapsed.count() + (frameCount - 1) * surfaceTimeComputation) / frameCount;
 }
 
 void VulkanEngine::renderScene(VkCommandBuffer commandBuffer) {
@@ -1004,10 +1000,11 @@ std::string VulkanEngine::frameID(int frameCount) {
 }
 
 void VulkanEngine::showStatistics() {
-    std::cout << "\n"
-        << "time for SPH simulation : " << std::setw(6) << sphTimeComputation << " ms\n"
-        << "time for surface reconstruction : " << std::setw(6) << surfaceTimeComputation << " ms\n"
-        << std::endl;
+    std::cout << "\n" << "general statistics : \n" << std::endl;
+    sphSolver.showGeneralStatistics();
+
+    std::cout << "\n" << "detailed statistics : \n" << std::endl;
+    sphSolver.showDetailedStatistics();
 }
 
 
@@ -1165,7 +1162,7 @@ void VulkanEngine::breakingDam() {
 
 void VulkanEngine::fluidFlow() {
     // init solver
-    Real spacing = 1.0f / 8;
+    Real spacing = 1.0f / 4;
     sphSolver = IISPHsolver3D(spacing);
 
     Real  pCellSize = 2 * spacing;
@@ -1207,7 +1204,7 @@ void VulkanEngine::fluidFlow() {
         }
 
     // fluid reserve
-    Sampler::cubeVolume(fluidPos, pCellSize, offset + 1.5f * pCellSize, offset + Vec3f(size.x, size.y * 0.7f, size.z) - 1.5f * pCellSize);
+    Sampler::cubeVolume(fluidPos, pCellSize, offset + pCellSize, offset + Vec3f(size.x, size.y * 0.7f, size.z) - pCellSize);
 
     // pipe
     Vec3f pente = Vec3f(-spacing, spacing / 2, 0.0f);
@@ -1221,39 +1218,26 @@ void VulkanEngine::fluidFlow() {
         topRight -= pente;
     }
 
-    std::vector<Vec3f> temp = std::vector<Vec3f>();
-
-    // safe wall
     size = { gridSize.x - bottomLeft.x, gridSize.y, gridSize.z };
     offset = { bottomLeft.x, 0.0f, 0.0f };
     pipeOffset = (bottomLeft + topRight) / 2;
     bottomLeft = offset;
     topRight = size + offset;
 
-    for (float j = bottomLeft.y + offset100; j < topRight.y - offset50; j += offset50)
-        for (float k = bottomLeft.z + offset100; k < topRight.z - offset50; k += offset50) {
-            potentialPoint = { bottomLeft.x + offset50, j, k };
-
-            if (potentialPoint.distanceSquareTo(pipeOffset) > square(pipeSize.y / 2) + pCellSize)
-                temp.push_back(potentialPoint); // left
-        }
-
-    // end of pipe
     for (int count = 0; count < 3; count++) {
         Sampler::cylinderSurface(boundaryPos, spacing, pipeOffset, pipeSize.y / 2, spacing, false);
         pipeOffset -= pente;
     }
 
-    // glass
-    
+    // glass   
     offset = { (bottomLeft.x + gridSize.x) / 2, pCellSize, gridSize.z / 2 };
     Real height = pipeOffset.y - pipeSize.y / 2 - 2 * pCellSize;
-    Real maxRadius = gridSize.z / 2 - 6 * pCellSize;
+    Real radius = gridSize.z / 2 - 6 * pCellSize;
 
-    Sampler::cylinderSurface(boundaryPos, spacing, offset, maxRadius, height);
-    Sampler::cylinderSurface(boundaryPos, spacing, offset, maxRadius + spacing, height);
+    Sampler::cylinderSurface(boundaryPos, spacing, offset, radius, height);
+    //Sampler::cylinderSurface(boundaryPos, spacing, offset, radius + spacing, height);
 
-    glm::vec3 position(offset.x - pCellSize, offset.y + maxRadius - pCellSize, offset.z - pCellSize), color(0.8f, 0.7f, 0.2f), glassSize(maxRadius), rotationAxis(0.0f, 1.0f, 0.0f), p{};
+    glm::vec3 position(offset.x - pCellSize, offset.y + radius - pCellSize, offset.z - pCellSize), color(0.8f, 0.7f, 0.2f), glassSize(radius), rotationAxis(0.0f, 1.0f, 0.0f), p{};
     float angle(0.0f);
     
     RenderObject glass{};
