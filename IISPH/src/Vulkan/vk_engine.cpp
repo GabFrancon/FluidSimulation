@@ -1165,7 +1165,7 @@ void VulkanEngine::breakingDam() {
 
 void VulkanEngine::fluidFlow() {
     // init solver
-    Real spacing = 1.0f / 8;
+    Real spacing = 1.0f / 4;
     sphSolver = IISPHsolver3D(spacing);
 
     Real  pCellSize = 2 * spacing;
