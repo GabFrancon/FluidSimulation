@@ -9,19 +9,13 @@ The code supports multi-threading on CPU using the openMP API. It also contains 
 For each scenario, you can see the particle simulation and surface reconstruction side by side, rendered with our basic Vulkan engine. We also present the simulation incorporated in a scene and rendered with Cycles (Blender's physic-based engine) for nicer results.
 
 ### Breaking dam scenario
-<p float="center">
-  <img src="./results/gif/breaking_dam.gif"/>
-  <img src="./results/gif/call_of_the_wolf.gif"/>
-</p>
+![alt text](./results/gif/breaking_dam.gif)
+![alt text](./results/gif/call_of_the_wolf.gif)
 
 ### Drop and splash scenario
-<p float="center">
-  <img src="./results/gif/drop_and_splash.gif"/>
-  <img src="./results/gif/drop_on_the_beach.gif"/>
-</p>
+![alt text](./results/gif/drop_and_splash.gif)
+![alt text](./results/gif/drop_on_the_beach.gif)
 
 ### Fluid flow scenario
-<p float="center">
-  <img src="./results/gif/fluid_flow.gif"/>
-  <img src="./results/gif/glass_of_friendship.gif"/>
-</p>
+![alt text](./results/gif/fluid_flow.gif)
+![alt text](./results/gif/glass_of_friendship.gif)
