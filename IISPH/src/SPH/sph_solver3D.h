@@ -11,6 +11,9 @@
 #include <vector>
 #include <omp.h>
 
+#include <chrono>
+typedef std::chrono::high_resolution_clock Clock;
+
 
 class IISPHsolver3D
 {
@@ -43,6 +46,10 @@ public:
     void solveSimulation();
     void reconstructSurface();
 
+    void showGeneralStatistics();
+    void showDetailedStatistics();
+
+
 
     /*-------------------------------------------Inline utilities------------------------------------------------*/
 
@@ -69,8 +76,8 @@ public:
 
     const inline POINT3D*      vertices() const { return _isoSurface.m_ppt3dVertices; }
     const inline unsigned int* indices()  const { return _isoSurface.m_piTriangleIndices; }
-    
 
+    
 private:
    /*-------------------------------------------Neighbor search------------------------------------------------*/
 
@@ -193,5 +200,13 @@ private:
     Real  _m0;                    // rest mass
     Real  _omega;                 // Jacobi's relaxed coeff
     Real  _c;                     // speed of sound
+
+    // statistics
+    double searchNeighborsTime  = 0.0f;
+    double predictAdvectionTime = 0.0f;
+    double solvePressureTime    = 0.0f;
+    double correctPositionTime  = 0.0f;
+    double distanceFieldTime    = 0.0f;
+    double marchingCubesTime    = 0.0f;
 };
 
