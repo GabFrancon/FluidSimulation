@@ -1,4 +1,4 @@
-# IISPH
+# Fluid simulation using IISPH
 This is the code repository of a project from a Computer Graphics course at Télécom Paris (IGR205), implementing the [Implicit Incompressible SPH](https://cg.informatik.uni-freiburg.de/publications/2013_TVCG_IISPH.pdf) approach and a [surface reconstruction](https://www.cs.ubc.ca/~rbridson/docs/zhu-siggraph05-sandfluid.pd) method to make effective and efficient fluid simulation.
 
 The code supports multi-threading on CPU using the openMP API. It also contains a basic render engine for visualization purpose, using the Vulkan graphics API. You can find the full report of the project [here](resources/Report.pdf).
