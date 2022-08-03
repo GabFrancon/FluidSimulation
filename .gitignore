@@ -40,12 +40,8 @@ IISPH/x64/*
 *.vcxproj.user
 
 # raw data
-results/graphics/*
 results/screenshots/*
 results/meshes/*
-results/meshes_break/*
-results/meshes_drop/*
-results/meshes_flow/*
 
 # mp4 videos
 *particle.mp4
